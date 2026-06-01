@@ -96,7 +96,78 @@ The nearest POS transaction falls 13 minutes outside this window.
 The system correctly returns conversion_rate: 0.0 for this window.
 A full production deployment with day-long feeds would show real conversion data.
 
-## Architecture
+## System Architecture
+
+The Store Intelligence System operates as an asynchronous, event-driven pipeline that converts raw unstructured video footage and structured POS logs into real-time retail insights:
+
+```text
+ ┌────────────────────────────────────────────────────────────────────────┐
+ │                              INPUT SOURCES                             │
+ │  ┌───────────────────────┐                  ┌───────────────────────┐  │
+ │  │ 5x CCTV Camera Feeds  │                  │  POS Transactions CSV │  │
+ │  │ (CAM_1 to CAM_5 - MP4)│                  │ (pos_transactions.csv)│  │
+ │  └───────────┬───────────┘                  └───────────┬───────────┘  │
+ └──────────────┼──────────────────────────────────────────┼──────────────┘
+                ▼                                          ▼
+ ┌────────────────────────────────────────────────────────────────────────┐
+ │                       COMPUTER VISION PIPELINE                         │
+ │  ┌──────────────────────────────────────────────────────────────────┐  │
+ │  │             YOLOv8 Detector + ByteTrack Object Tracking          │  │
+ │  └──────────────────────────────────┬───────────────────────────────┘  │
+ │                                     ▼                                  │
+ │  ┌──────────────────────────────────────────────────────────────────┐  │
+ │  │                    Custom Retail Logic Blocks                    │  │
+ │  │  - CAM_3 (Entry Mat): Mat Crossing Foot-Tracker (y=580)          │  │
+ │  │  - CAM_1 & 2 (Zone Dwelling): cv2.pointPolygonTest overlap       │  │
+ │  │  - CAM_4 (Stockroom): HSV Upper-Body Feature Extractor (Re-ID)   │  │
+ │  │  - CAM_5 (Billing Queue): Queue join/abandon tracker             │  │
+ │  └──────────────────────────────────┬───────────────────────────────┘  │
+ └─────────────────────────────────────┼──────────────────────────────────┘
+                                       ▼
+ ┌────────────────────────────────────────────────────────────────────────┐
+ │                             INGESTION STREAM                           │
+ │  ┌──────────────────────────────────────────────────────────────────┐  │
+ │  │                Structured JSON Events (events.jsonl)             │  │
+ │  └──────────────────────────────────┬───────────────────────────────┘  │
+ │                                     ▼                                  │
+ │  ┌──────────────────────────────────────────────────────────────────┐  │
+ │  │                    FastAPI POST /events/ingest                   │  │
+ │  └──────────────────────────────────┬───────────────────────────────┘  │
+ └─────────────────────────────────────┼──────────────────────────────────┘
+                                       ▼
+ ┌────────────────────────────────────────────────────────────────────────┐
+ │                      STORAGE & ANALYTICS PORTAL                        │
+ │  ┌──────────────────────────────────────────────────────────────────┐  │
+ │  │                    SQLAlchemy Database Service                   │  │
+ │  └──────────────────────────────────┬───────────────────────────────┘  │
+ │                                     ▼                                  │
+ │  ┌──────────────────────────────────────────────────────────────────┐  │
+ │  │                Persistent SQLite Volume (store_intelligence.db)  │  │
+ │  └──────────────────────────────────┬───────────────────────────────┘  │
+ │                                     ▼                                  │
+ │  ┌──────────────────────────────────────────────────────────────────┐  │
+ │  │                REST API Get Analytics Endpoints                  │  │
+ │  │                - /metrics, /funnel, /heatmap, /anomalies         │  │
+ │  └──────────────────────────────────┬───────────────────────────────┘  │
+ └─────────────────────────────────────┼──────────────────────────────────┘
+                                       ▼
+ ┌────────────────────────────────────────────────────────────────────────┐
+ │                             CLIENT ACCESS                              │
+ │  ┌───────────────────────┐                  ┌───────────────────────┐  │
+ │  │  Rich Terminal UI     │                  │   Local Browser View  │  │
+ │  │  (live_dashboard.py)  │                  │  (Metrics/Funnel APIs)│  │
+ │  └───────────────────────┘                  └───────────────────────┘  │
+ └────────────────────────────────────────────────────────────────────────┘
+```
+
+### Core Architecture Components
+1. **Unstructured Data Ingestion**: The system consumes H.264 compressed MP4 retail camera video clips. All timestamps are localized to Indian Standard Time (IST, UTC+5:30) to prevent clock drift.
+2. **Object Detection & Re-ID**: YOLOv8 is used for robust human detection. Upper-body crop HSV color histograms are compiled on stockroom tracks (CAM_4) to uniquely identify employees and filter them out of consumer metric evaluations using cosine similarity.
+3. **Behavioral Inference**: Custom geometry modules run foot-tracking intersection metrics (for entries/exits) and spatial polygon checks (for zone dwell times) on human tracks.
+4. **Idempotent Storage**: FastAPI digests event batches, verifies event ID uniqueness, and stores records in SQLite via SQLAlchemy Core, updating KPIs dynamically.
+5. **Real-time REST APIs**: Serving metrics, heatmaps, operational anomalies (like queue depth warnings), and drop-off funnels to clients.
+6. **Live Terminal Monitor**: Uses `rich.live` to fetch API state and replay ingested logs at 10x speed.
 
 See docs/DESIGN.md for full architecture and AI-assisted decisions.
 See docs/CHOICES.md for engineering trade-off reasoning.
+
