@@ -1,0 +1,26 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: store-intelligence-api:latest
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data         # pos_transactions.csv and video feeds live here
+      - sqlite_data:/app/db
+    environment:
+      - DB_PATH=/app/db/store_intelligence.db
+      - LOG_LEVEL=INFO
+      - POS_CSV_PATH=/app/data/pos_transactions.csv
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health').read()"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  sqlite_data:

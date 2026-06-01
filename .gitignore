@@ -1,0 +1,54 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Environment
+.env
+.env.*
+venv/
+env/
+.venv/
+
+# Data files - do not commit video files (too large)
+*.mp4
+data/*.mp4
+data/CAM_*.mp4
+data/*.MP4
+
+# Model weights - too large for git
+*.pt
+*.pth
+yolov8n.pt
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+*.db-shm
+*.db-wal
+
+# Generated outputs - do not commit
+events.jsonl
+staff_descriptors.pkl
+*.pkl
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.swp

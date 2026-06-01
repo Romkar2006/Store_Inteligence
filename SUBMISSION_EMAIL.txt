@@ -1,0 +1,29 @@
+To: reviewer@example.com
+Subject: Store Intelligence — submission of pipeline fixes and artifacts
+
+Hi,
+
+I've completed the requested fixes and verification for the Store Intelligence pipeline. Summary of what changed:
+
+- Fixed ENTRY/EXIT detection for CAM_3 and added a CLI entry point for local validation.
+- Tightened visitor propagation to avoid funnel anomalies (synthetic IDs only issued when needed).
+- Added Docker configuration (`Dockerfile`, `docker-compose.yml`, `.dockerignore`) and documentation.
+- Added `data/sample_events.jsonl` and `docs/DESIGN.md` describing design decisions and limitations.
+- All unit/smoke tests pass locally (26 passed).
+
+How to verify quickly:
+1. Start Docker Desktop (Windows) and wait for the engine to be ready.
+2. From the `store-intelligence` folder run:
+
+```
+docker compose up --build -d
+docker compose logs -f api
+curl -sS http://127.0.0.1:8000/health
+```
+
+Notes:
+- `events.jsonl` is a generated file and must not be committed. The `.gitignore` includes it; if it exists in tracking, run `git rm --cached events.jsonl`.
+- If you want me to push the branch and open a PR, I can do that once you confirm.
+
+Best,
+[Your Name]
