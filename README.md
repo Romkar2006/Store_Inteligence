@@ -82,10 +82,11 @@ python dashboard/live_dashboard.py \
 
 | Endpoint | Description |
 |----------|-------------|
-| GET /stores/ST1008/metrics | Unique visitors, conversion rate, zone dwell |
-| GET /stores/ST1008/funnel | Entry → Zone → Billing → Purchase |
-| GET /stores/ST1008/heatmap | Zone heat scores normalised 0–100 |
-| GET /stores/ST1008/anomalies | Queue spikes, conversion drops, dead zones |
+| GET /stores/{store_id}/metrics | Unique visitors, conversion rate, zone dwell |
+| GET /stores/{store_id}/funnel | Entry → Zone → Billing → Purchase |
+| GET /stores/{store_id}/heatmap | Zone heat scores normalised 0–100 |
+| GET /stores/{store_id}/anomalies | Queue spikes, conversion drops, dead zones |
+| POST /stores/{store_id}/ask | Natural Language Query AI grounding (Gemini RAG / Fallback rules) |
 | GET /health | Service status, stale feed detection |
 | POST /events/ingest | Batch event ingestion (idempotent) |
 
@@ -191,6 +192,7 @@ Visit: **http://localhost:5173**
 - **Simulated CCTV Video Feeds Matrix**: A 2x2 surveillance monitoring grid showing camera labels, active object detections, confidence indices, and warning alarms (e.g. flashing **"QUEUE SPIKE"** flags on the checkout camera).
 - **Staff ReID Activity Monitor**: A dedicated sidebar panel tracking staff classifications, ReID model template checks, and a live progress indicator mapping customer vs. staff event ratios.
 - **Advanced Recharts Integration**: Interactive area charts mapping shopper conversion funnels (`ENTRY` → `ZONE_VISIT` → `BILLING_QUEUE` → `PURCHASE`) and horizontal bar charts mapping average dwells.
+- **Conversational Ask AI Analytics**: A sleek panel in the dashboard sidebar to ask operational questions in plain English (e.g., "Which zone had the most traffic today?"). Integrates automatic scrolling, suggestion chips, loading states, and glowing grounding badges.
 
 ---
 
@@ -253,6 +255,7 @@ graph TD
 5. Add the environment variables:
    - `DB_PATH` = `store_intelligence.db`
    - `POS_CSV_PATH` = `data/pos_transactions.csv`
+   - `GEMINI_API_KEY` = `your-google-gemini-api-key`
 6. Click **Deploy**.
 
 ---
