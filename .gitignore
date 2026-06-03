@@ -40,6 +40,8 @@ yolov8n.pt
 
 # Generated outputs - do not commit
 events.jsonl
+events_store_2.jsonl
+*.jsonl
 staff_descriptors.pkl
 *.pkl
 

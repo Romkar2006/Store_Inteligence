@@ -101,6 +101,18 @@ async def ingest_events(
     if to_insert:
         await conn.execute(events.insert(), to_insert)
         await conn.commit()
+        
+        # Broadcast via WebSockets in the background to minimize response latency
+        from app.websocket import manager
+        import asyncio
+        for event_dict in to_insert:
+            asyncio.create_task(manager.broadcast_to_store(
+                event_dict["store_id"],
+                {
+                    "type": "LIVE_EVENT",
+                    "event": event_dict
+                }
+            ))
 
     # 5. Populate request state for logging middleware access
     request.state.event_count = event_count

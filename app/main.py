@@ -84,9 +84,23 @@ async def logging_middleware(request: Request, call_next):
 
     logger.info("API request completed", **log_data)
     
-    # Attach trace ID to response headers
     response.headers["X-Trace-ID"] = trace_id
     return response
+
+from fastapi import WebSocket, WebSocketDisconnect
+from app.websocket import manager
+
+@app.websocket("/stores/{store_id}/ws")
+async def websocket_endpoint(websocket: WebSocket, store_id: str):
+    await manager.connect(websocket, store_id)
+    try:
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        manager.disconnect(websocket, store_id)
+    except Exception as e:
+        logger.error("WebSocket connection error", store_id=store_id, error=str(e))
+        manager.disconnect(websocket, store_id)
 
 # Global Exception Handler (Correction 3 & specification check)
 @app.exception_handler(Exception)
