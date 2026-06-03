@@ -7,6 +7,8 @@ from sqlalchemy import MetaData, select
 
 TEST_DB_PATH = "test_store_intelligence_ask.db"
 os.environ["DB_PATH"] = TEST_DB_PATH
+# Prevent tests from calling the external Gemini API
+os.environ.pop("GEMINI_API_KEY", None)
 
 from app.main import app
 from app.db import get_db_conn, events, pos_transactions, metadata
@@ -128,6 +130,7 @@ async def test_ask_conversion_rate():
             await insert_mock_events(conn, [
                 make_event("id-1", "ENTRY", "VIS_01", timestamp="2026-04-10T20:10:00+05:30"),
                 make_event("id-2", "ZONE_ENTER", "VIS_01", timestamp="2026-04-10T20:10:00+05:30", zone_id="BILLING_COUNTER"),
+                make_event("id-3", "BILLING_QUEUE_JOIN", "VIS_01", timestamp="2026-04-10T20:10:00+05:30", queue_depth=1),
             ])
             # Insert POS transaction at 20:12:00 (within 5 minutes window)
             await conn.execute(pos_transactions.insert(), [{
