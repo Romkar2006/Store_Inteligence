@@ -74,6 +74,7 @@ export default function App() {
   const [funnel, setFunnel] = useState(null);
   const [anomalies, setAnomalies] = useState([]);
   const [liveEvents, setLiveEvents] = useState([]);
+  const [flowData, setFlowData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [wsStatus, setWsStatus] = useState("connecting"); // 'connected' | 'disconnected' | 'connecting'
@@ -140,20 +141,22 @@ export default function App() {
       setLoading(true);
       setError(null);
       
-      const [heatmapRes, metricsRes, funnelRes, anomaliesRes] = await Promise.all([
+      const [heatmapRes, metricsRes, funnelRes, anomaliesRes, flowRes] = await Promise.all([
         fetch(`${API_BASE}/stores/${targetStoreId}/heatmap`),
         fetch(`${API_BASE}/stores/${targetStoreId}/metrics`),
         fetch(`${API_BASE}/stores/${targetStoreId}/funnel`),
-        fetch(`${API_BASE}/stores/${targetStoreId}/anomalies`)
+        fetch(`${API_BASE}/stores/${targetStoreId}/anomalies`),
+        fetch(`${API_BASE}/stores/${targetStoreId}/flow`)
       ]);
 
-      if (!heatmapRes.ok || !metricsRes.ok || !funnelRes.ok || !anomaliesRes.ok) {
+      if (!heatmapRes.ok || !metricsRes.ok || !funnelRes.ok || !anomaliesRes.ok || !flowRes.ok) {
         throw new Error("One or more backend API endpoints failed to load.");
       }
 
       setHeatmap(await heatmapRes.json());
       setMetrics(await metricsRes.json());
       setFunnel(await funnelRes.json());
+      setFlowData(await flowRes.json());
       
       const anomaliesData = await anomaliesRes.json();
       setAnomalies(anomaliesData.anomalies || []);
@@ -980,6 +983,26 @@ export default function App() {
 
       </div>
 
+      {/* Visitor Journey Sankey Flow Row */}
+      <div className="mt-6">
+        <div className="bg-slate-900 border border-slate-800/80 rounded-xl shadow-xl overflow-hidden">
+          <div className="border-b border-slate-800 px-4 py-3 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <TrendingUp className="h-4 w-4 text-purple-400" />
+              <h2 className="text-sm font-bold uppercase tracking-wider text-slate-300">
+                Visitor Journey Path Analysis (Sankey Flow)
+              </h2>
+            </div>
+            <span className="text-[10px] text-slate-400 italic">
+              Visualizing zone-to-zone pathways and abandonment drop-offs
+            </span>
+          </div>
+          <div className="p-6">
+            <SankeyFlow nodes={flowData?.nodes} links={flowData?.links} />
+          </div>
+        </div>
+      </div>
+
       {/* Footer */}
       <footer className="mt-8 border-t border-slate-900 pt-4 flex justify-between items-center text-[10px] text-slate-600">
         <div>
@@ -993,3 +1016,455 @@ export default function App() {
     </div>
   );
 }
+
+const SankeyFlow = ({ nodes = [], links = [] }) => {
+  const [hoveredNode, setHoveredNode] = useState(null);
+  const [hoveredLink, setHoveredLink] = useState(null);
+  const [selectedPath, setSelectedPath] = useState(null);
+
+  if (!nodes || nodes.length === 0) {
+    return (
+      <div className="flex h-64 items-center justify-center text-slate-500 text-xs italic">
+        No visitor flow data recorded for this store yet.
+      </div>
+    );
+  }
+
+  // 1. Column placement map (handles raw uppercase zone IDs from the backend)
+  const colMap = {
+    ENTRY: 0,
+    EXIT: 4,
+    BILLING_QUEUE: 3,
+    QUEUE_ABANDON: 4,
+    BILLING_COUNTER: 3
+  };
+
+  // Group nodes by column
+  const cols = [[], [], [], [], []];
+  nodes.forEach(node => {
+    let colIdx = 1; // default middle
+    const nid = node.id.toUpperCase();
+    if (colMap[nid] !== undefined) {
+      colIdx = colMap[nid];
+    } else if (nid.includes("SKINCARE") || nid.includes("FRAGRANCE")) {
+      colIdx = 1;
+    } else if (nid.includes("CENTER") || nid.includes("AISLE") || nid.includes("SUMMER") || nid.includes("DISPLAY") || nid.includes("PROMO")) {
+      colIdx = 1;
+    } else if (nid.includes("MAKEUP") || nid.includes("MIRROR") || nid.includes("GONDOLA") || nid.includes("TABLE")) {
+      colIdx = 2;
+    } else if (nid.includes("BILLING")) {
+      colIdx = 3;
+    } else if (nid.includes("EXIT") || nid.includes("ABANDON")) {
+      colIdx = 4;
+    }
+    node.col = colIdx;
+    if (!cols[colIdx].find(n => n.id === node.id)) {
+      cols[colIdx].push(node);
+    }
+  });
+
+  // Calculate weights based on transitions
+  const nodeInWeights = {};
+  const nodeOutWeights = {};
+  const nodeTotalWeights = {};
+  
+  nodes.forEach(n => {
+    nodeInWeights[n.id] = 0;
+    nodeOutWeights[n.id] = 0;
+    nodeTotalWeights[n.id] = 0;
+  });
+
+  links.forEach(l => {
+    nodeOutWeights[l.source] = (nodeOutWeights[l.source] || 0) + l.value;
+    nodeInWeights[l.target] = (nodeInWeights[l.target] || 0) + l.value;
+  });
+
+  nodes.forEach(n => {
+    nodeTotalWeights[n.id] = Math.max(nodeInWeights[n.id], nodeOutWeights[n.id]);
+  });
+
+  // Entry node represents the total shoppers
+  const entryNode = nodes.find(n => n.id === "ENTRY");
+  const totalShoppers = entryNode ? nodeOutWeights["ENTRY"] || 0 : 0;
+
+  // Geometry config
+  const W = 800;
+  const H = 280;
+  const nodeWidth = 20;
+  const paddingX = 40;
+  const paddingY = 30;
+  const colGap = (W - paddingX * 2 - nodeWidth) / 4;
+  const nodeGap = 15;
+
+  // Find max column weight to scale heights globally
+  let maxColWeight = 0;
+  cols.forEach(col => {
+    let colWeight = 0;
+    col.forEach(n => {
+      colWeight += (nodeTotalWeights[n.id] || 0);
+    });
+    if (colWeight > maxColWeight) {
+      maxColWeight = colWeight;
+    }
+  });
+
+  // Global Y scale (leaving vertical space for gaps)
+  const availableH = H - paddingY * 2;
+  const yScale = maxColWeight > 0 ? (availableH - 4 * nodeGap) / maxColWeight : 1;
+
+  // Layout node positions
+  const nodesLayout = {};
+  cols.forEach((col, colIdx) => {
+    const x = paddingX + colIdx * colGap;
+    let currentY = paddingY;
+    
+    // Sort nodes to make the layout cleaner
+    col.sort((a, b) => b.id.localeCompare(a.id));
+    
+    col.forEach(node => {
+      const weight = nodeTotalWeights[node.id] || 0;
+      const height = Math.max(weight * yScale, 12); // minimum 12px
+      nodesLayout[node.id] = {
+        ...node,
+        x,
+        y: currentY,
+        w: nodeWidth,
+        h: height,
+        weight
+      };
+      currentY += height + nodeGap;
+    });
+  });
+
+  // Link layout computation
+  const inOffsets = {};
+  const outOffsets = {};
+  nodes.forEach(n => {
+    inOffsets[n.id] = 0;
+    outOffsets[n.id] = 0;
+  });
+
+  // Pre-sort links by source y coordinate for clean crossing avoidance
+  const sortedLinks = [...links].sort((a, b) => {
+    const srcA = nodesLayout[a.source];
+    const srcB = nodesLayout[b.source];
+    if (!srcA || !srcB) return 0;
+    return srcA.y - srcB.y;
+  });
+
+  const linksLayout = sortedLinks.map((link, idx) => {
+    const srcNode = nodesLayout[link.source];
+    const tgtNode = nodesLayout[link.target];
+    if (!srcNode || !tgtNode) return null;
+
+    const lh = Math.max(link.value * yScale, 1.5); // min 1.5px ribbon
+    const sy = srcNode.y + outOffsets[link.source] + lh / 2;
+    const ty = tgtNode.y + inOffsets[link.target] + lh / 2;
+
+    // Increment offsets
+    outOffsets[link.source] += lh;
+    inOffsets[link.target] += lh;
+
+    const x0 = srcNode.x + nodeWidth;
+    const x1 = tgtNode.x;
+    const dx = (x1 - x0) / 2;
+
+    const pathData = `
+      M ${x0} ${sy - lh/2}
+      C ${x0 + dx} ${sy - lh/2}, ${x1 - dx} ${ty - lh/2}, ${x1} ${ty - lh/2}
+      L ${x1} ${ty + lh/2}
+      C ${x1 - dx} ${ty + lh/2}, ${x0 + dx} ${sy + lh/2}, ${x0} ${sy + lh/2}
+      Z
+    `.trim();
+
+    const centerLinePath = `
+      M ${x0} ${sy}
+      C ${x0 + dx} ${sy}, ${x1 - dx} ${ty}, ${x1} ${ty}
+    `.trim();
+
+    // Highlights state
+    const isNodeHovered = hoveredNode !== null && (link.source === hoveredNode || link.target === hoveredNode);
+    const isLinkHovered = hoveredLink === idx;
+    
+    // Check if this matches selected path
+    let isPathSelected = false;
+    if (selectedPath === "conversion") {
+      isPathSelected = (link.source === "ENTRY" && (link.target === "SKINCARE_SHELF_RIGHT" || link.target === "FRAGRANCE_DISPLAY")) ||
+                        ((link.source === "SKINCARE_SHELF_RIGHT" || link.source === "FRAGRANCE_DISPLAY") && link.target.includes("MAKEUP")) ||
+                        (link.source.includes("MAKEUP") && link.target === "BILLING_COUNTER") ||
+                        (link.source === "BILLING_COUNTER" && link.target === "BILLING_QUEUE");
+    } else if (selectedPath === "loss") {
+      isPathSelected = (link.source === "ENTRY" && link.target.includes("MAKEUP")) ||
+                        (link.source.includes("MAKEUP") && (link.target === "EXIT" || link.target === "QUEUE_ABANDON"));
+    }
+
+    const isActive = isLinkHovered || isNodeHovered || isPathSelected;
+    const isFaded = (hoveredLink !== null || hoveredNode !== null || selectedPath !== null) && !isActive;
+
+    // Color theme
+    let colorClass = "fill-slate-700/30 stroke-slate-600/20";
+    let glowColor = "rgba(100, 116, 139, 0.2)";
+    let particleColor = "#94a3b8";
+
+    const tgtUpper = link.target.toUpperCase();
+    const srcUpper = link.source.toUpperCase();
+
+    if (tgtUpper === "EXIT" || tgtUpper === "QUEUE_ABANDON" || tgtUpper.includes("ABANDON")) {
+      // Dropout path: Red/Orange theme
+      colorClass = isActive
+        ? "fill-rose-400/50 stroke-rose-300/60"
+        : "fill-rose-400/25 stroke-rose-400/15";
+      glowColor = "rgba(244, 63, 94, 0.4)";
+      particleColor = "#fb7185";
+    } else if (tgtUpper.includes("BILLING") || srcUpper.includes("BILLING")) {
+      // Checkout conversion path: Vibrant purple/emerald
+      colorClass = isActive
+        ? "fill-purple-400/50 stroke-purple-300/60"
+        : "fill-purple-400/25 stroke-purple-400/15";
+      glowColor = "rgba(168, 85, 247, 0.4)";
+      particleColor = "#c084fc";
+    } else {
+      // Standard transitional flow
+      colorClass = isActive
+        ? "fill-indigo-400/50 stroke-indigo-300/60"
+        : "fill-indigo-400/25 stroke-indigo-400/15";
+      glowColor = "rgba(99, 102, 241, 0.4)";
+      particleColor = "#818cf8";
+    }
+
+    return {
+      path: pathData,
+      centerLine: centerLinePath,
+      source: link.source,
+      target: link.target,
+      value: link.value,
+      lh,
+      colorClass,
+      glowColor,
+      particleColor,
+      isActive,
+      isFaded,
+      idx
+    };
+  }).filter(Boolean);
+
+  // Helper to color nodes dynamically
+  const getNodeColor = (id) => {
+    const nid = id.toUpperCase();
+    if (nid === "ENTRY") return "fill-indigo-400 stroke-indigo-300";
+    if (nid === "EXIT") return "fill-emerald-400 stroke-emerald-300";
+    if (nid === "QUEUE_ABANDON" || nid.includes("ABANDON")) return "fill-rose-400 stroke-rose-300";
+    if (nid.includes("BILLING")) return "fill-purple-400 stroke-purple-300";
+    if (nid.includes("SKINCARE") || nid.includes("FRAGRANCE")) return "fill-teal-400 stroke-teal-300";
+    if (nid.includes("MAKEUP") || nid.includes("MIRROR")) return "fill-pink-400 stroke-pink-300";
+    return "fill-slate-400 stroke-slate-300";
+  };
+
+  return (
+    <div className="w-full relative overflow-hidden">
+      
+      {/* Inline styles for animated flow dash */}
+      <style dangerouslySetInnerHTML={{__html: `
+        @keyframes flowDash {
+          to {
+            stroke-dashoffset: -32;
+          }
+        }
+        .animate-flow-dash {
+          animation: flowDash 1.8s linear infinite;
+        }
+      `}} />
+
+      {/* Path Quick Filters */}
+      <div className="flex gap-2 mb-4 justify-end">
+        <button
+          onClick={() => setSelectedPath(selectedPath === "conversion" ? null : "conversion")}
+          className={`px-2.5 py-1 rounded-md text-[9px] font-bold border transition-all ${
+            selectedPath === "conversion"
+              ? "bg-purple-600/25 border-purple-500 text-purple-300 shadow-md shadow-purple-500/10"
+              : "border-slate-800 hover:border-slate-700 bg-slate-950 text-slate-400 hover:text-slate-200"
+          }`}
+        >
+          Highlight Checkout Path
+        </button>
+        <button
+          onClick={() => setSelectedPath(selectedPath === "loss" ? null : "loss")}
+          className={`px-2.5 py-1 rounded-md text-[9px] font-bold border transition-all ${
+            selectedPath === "loss"
+              ? "bg-rose-600/25 border-rose-500 text-rose-300 shadow-md shadow-rose-500/10"
+              : "border-slate-800 hover:border-slate-700 bg-slate-950 text-slate-400 hover:text-slate-200"
+          }`}
+        >
+          Highlight Drop-off Path
+        </button>
+      </div>
+
+      {/* Sankey SVG Container */}
+      <div className="relative overflow-x-auto scrollbar-thin flex justify-center">
+        <svg
+          viewBox={`0 0 ${W} ${H}`}
+          className="w-full max-w-[800px] h-[280px] select-none block overflow-visible"
+        >
+          <defs>
+            <filter id="neon-glow" x="-20%" y="-20%" width="140%" height="140%">
+              <feGaussianBlur stdDeviation="4" result="blur" />
+              <feMerge>
+                <feMergeNode in="blur" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+          </defs>
+
+          {/* Links / Ribbons */}
+          <g>
+            {linksLayout.map((link) => (
+              <g key={link.idx}>
+                {/* Flow Ribbon Background */}
+                <path
+                  d={link.path}
+                  className={`transition-all duration-300 ease-out ${link.colorClass}`}
+                  style={{
+                    opacity: link.isFaded ? 0.05 : link.isActive ? 0.9 : 0.4,
+                    filter: link.isActive ? "url(#neon-glow)" : "none"
+                  }}
+                  onMouseEnter={() => setHoveredLink(link.idx)}
+                  onMouseLeave={() => setHoveredLink(null)}
+                />
+                
+                {/* Flow Ribbon Animated Particles */}
+                {!link.isFaded && (
+                  <path
+                    d={link.centerLine}
+                    fill="none"
+                    stroke={link.particleColor}
+                    strokeWidth="1.5"
+                    strokeDasharray="5 8"
+                    className="animate-flow-dash pointer-events-none"
+                    style={{
+                      opacity: link.isActive ? 0.95 : 0.45
+                    }}
+                  />
+                )}
+              </g>
+            ))}
+          </g>
+
+          {/* Nodes */}
+          <g>
+            {Object.values(nodesLayout).map((node) => {
+              const color = getNodeColor(node.id);
+              const isHovered = hoveredNode === node.id;
+              const pct = totalShoppers > 0 ? Math.round((node.weight / totalShoppers) * 100) : 0;
+              
+              // Dim other nodes if something is hovered
+              const isFaded = (hoveredNode !== null && hoveredNode !== node.id) ||
+                              (hoveredLink !== null && sortedLinks[hoveredLink].source !== node.id && sortedLinks[hoveredLink].target !== node.id);
+
+              return (
+                <g
+                  key={node.id}
+                  className="cursor-pointer"
+                  onMouseEnter={() => setHoveredNode(node.id)}
+                  onMouseLeave={() => setHoveredNode(null)}
+                >
+                  {/* Node Rect */}
+                  <rect
+                    x={isHovered ? node.x - 3 : node.x}
+                    y={node.y}
+                    width={isHovered ? node.w + 6 : node.w}
+                    height={node.h}
+                    rx="4"
+                    ry="4"
+                    className={`transition-all duration-300 stroke-[1.5] ${color}`}
+                    style={{
+                      opacity: isFaded ? 0.25 : 1
+                    }}
+                  />
+
+                  {/* Node Label */}
+                  <text
+                    x={node.col === 4 ? node.x - 8 : node.x + node.w + 8}
+                    y={node.y + node.h / 2 + 3}
+                    textAnchor={node.col === 4 ? "end" : "start"}
+                    className="text-[9.5px] font-extrabold fill-slate-100"
+                    style={{
+                      opacity: isFaded ? 0.25 : 1
+                    }}
+                  >
+                    {(node.id || "").replace(/_/g, " ")}
+                  </text>
+
+                  {/* Weight label (small percentage overlay) */}
+                  <text
+                    x={node.col === 4 ? node.x - 8 : node.x + node.w + 8}
+                    y={node.y + node.h / 2 + 12}
+                    textAnchor={node.col === 4 ? "end" : "start"}
+                    className="text-[7.5px] font-bold fill-slate-400"
+                    style={{
+                      opacity: isFaded ? 0.25 : 1
+                    }}
+                  >
+                    {node.weight} visitors ({pct}%)
+                  </text>
+                </g>
+              );
+            })}
+          </g>
+        </svg>
+      </div>
+
+      {/* Interactive Flow Analytics Card */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4 bg-slate-950/80 p-3.5 rounded-xl border border-slate-850 text-xs">
+        <div className="flex flex-col justify-between">
+          <div>
+            <h4 className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 mb-1">
+              Store Entry Volume
+            </h4>
+            <div className="text-xl font-black text-indigo-400">
+              {totalShoppers} <span className="text-[10px] font-normal text-slate-500">active sessions today</span>
+            </div>
+          </div>
+          <p className="text-[9px] text-slate-500 mt-1 leading-relaxed">
+            Unique shoppers whose sequences are calculated, omitting staff and security personnel.
+          </p>
+        </div>
+
+        <div className="flex flex-col justify-between border-t md:border-t-0 md:border-l border-slate-850 pt-3 md:pt-0 md:pl-4">
+          <div>
+            <h4 className="text-[10px] font-extrabold uppercase tracking-wider text-purple-400 mb-1">
+              Store Conversion Flow
+            </h4>
+            <div className="text-lg font-black text-slate-100 flex items-baseline gap-1">
+              {nodeTotalWeights["BILLING_COUNTER"] || 0} 
+              <span className="text-[10px] text-emerald-400 font-bold">
+                ({totalShoppers > 0 ? Math.round(((nodeTotalWeights["BILLING_COUNTER"] || 0) / totalShoppers) * 100) : 0}% conv)
+              </span>
+            </div>
+          </div>
+          <p className="text-[9px] text-slate-500 mt-1 leading-relaxed">
+            Followed Entry → Skincare → Makeup → Billing and completed transaction at registers.
+          </p>
+        </div>
+
+        <div className="flex flex-col justify-between border-t md:border-t-0 md:border-l border-slate-850 pt-3 md:pt-0 md:pl-4">
+          <div>
+            <h4 className="text-[10px] font-extrabold uppercase tracking-wider text-rose-400 mb-1">
+              dropout & losses (Exit)
+            </h4>
+            <div className="text-lg font-black text-slate-100 flex items-baseline gap-1">
+              {nodeTotalWeights["EXIT"] || 0}
+              <span className="text-[10px] text-rose-400 font-bold">
+                ({totalShoppers > 0 ? Math.round(((nodeTotalWeights["EXIT"] || 0) / totalShoppers) * 100) : 0}% drop)
+              </span>
+            </div>
+          </div>
+          <p className="text-[9px] text-slate-500 mt-1 leading-relaxed">
+            Left store directly from aisles or abandoned billing queues due to high wait times.
+          </p>
+        </div>
+      </div>
+      
+    </div>
+  );
+};
+

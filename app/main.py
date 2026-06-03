@@ -142,6 +142,7 @@ from app.heatmap import router as heatmap_router
 from app.anomalies import router as anomalies_router
 from app.health import router as health_router
 from app.ask import router as ask_router
+from app.flow import router as flow_router
 
 # Register routers
 app.include_router(ingestion_router)
@@ -151,3 +152,4 @@ app.include_router(heatmap_router)
 app.include_router(anomalies_router)
 app.include_router(health_router)
 app.include_router(ask_router)
+app.include_router(flow_router)

@@ -92,3 +92,16 @@ class AskResponse(BaseModel):
     answer: str
     mode: str
 
+class FlowNode(BaseModel):
+    id: str
+
+class FlowLink(BaseModel):
+    source: str
+    target: str
+    value: int
+
+class FlowResponse(BaseModel):
+    store_id: str
+    nodes: List[FlowNode]
+    links: List[FlowLink]
+
