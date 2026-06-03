@@ -19,10 +19,11 @@ def process_billing(
     clip_start_str: str,
     pos_transactions_times: List[datetime],
     frame_skip: int = 3,
-    min_conf: float = 0.35
+    min_conf: float = 0.35,
+    camera_id: str = "CAM_BILLING_05"
 ):
     """
-    Process CAM_5 to track queue depth, queue joins, and abandonments (Step 17).
+    Process billing video to track queue depth, queue joins, and abandonments.
     """
     clip_start = datetime.fromisoformat(clip_start_str)
     if clip_start.tzinfo is None:
@@ -33,7 +34,7 @@ def process_billing(
         print(f"Error: Could not open billing video {video_path}")
         return []
 
-    fps = cap.get(cv2.CAP_PROP_FPS) or 25.0  # CAM_5 is 25fps (specs check)
+    fps = cap.get(cv2.CAP_PROP_FPS) or 25.0
     model = YOLO(model_path)
     
     # Track states
@@ -96,7 +97,7 @@ def process_billing(
                 if track_id not in active_tracks:
                     torso_crop = extract_torso_crop(frame, bbox)
                     centroid_history = [centroid]
-                    is_staff = classify_staff("CAM_BILLING_05", centroid[0], centroid_history, torso_crop)
+                    is_staff = classify_staff(camera_id, centroid[0], centroid_history, torso_crop)
                     
                     descriptor = compute_appearance_descriptor(frame, bbox)
                     
@@ -115,7 +116,7 @@ def process_billing(
                         # 1. Emit ZONE_ENTER for BILLING_COUNTER
                         evt_enter = create_event(
                             store_id=store_id,
-                            camera_id="CAM_BILLING_05",
+                            camera_id=camera_id,
                             visitor_id=f"TRACK_{track_id}",
                             event_type="ZONE_ENTER",
                             timestamp=timestamp_str,
@@ -134,7 +135,7 @@ def process_billing(
                         if current_queue_depth > 0:
                             evt_join = create_event(
                                 store_id=store_id,
-                                camera_id="CAM_BILLING_05",
+                                camera_id=camera_id,
                                 visitor_id=f"TRACK_{track_id}",
                                 event_type="BILLING_QUEUE_JOIN",
                                 timestamp=timestamp_str,
@@ -154,7 +155,7 @@ def process_billing(
                         # Staff ZONE_ENTER for billing (needed for heatmap / logs)
                         evt_enter = create_event(
                             store_id=store_id,
-                            camera_id="CAM_BILLING_05",
+                            camera_id=camera_id,
                             visitor_id=f"TRACK_{track_id}",
                             event_type="ZONE_ENTER",
                             timestamp=timestamp_str,
@@ -185,7 +186,7 @@ def process_billing(
                     if dwell_time >= 2.0:
                         evt_exit = create_event(
                             store_id=store_id,
-                            camera_id="CAM_BILLING_05",
+                            camera_id=camera_id,
                             visitor_id=f"TRACK_{track_id}",
                             event_type="ZONE_EXIT",
                             timestamp=track_state["last_seen_time"].isoformat(),
@@ -212,7 +213,7 @@ def process_billing(
                             # Customer left queue without POS purchase correlation within 5 mins -> Abandon (Step 17)
                             evt_abandon = create_event(
                                 store_id=store_id,
-                                camera_id="CAM_BILLING_05",
+                                camera_id=camera_id,
                                 visitor_id=f"TRACK_{track_id}",
                                 event_type="BILLING_QUEUE_ABANDON",
                                 timestamp=track_state["last_seen_time"].isoformat(),

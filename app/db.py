@@ -81,40 +81,60 @@ def init_db():
 
 def load_pos_data(conn):
     """Load and parse POS data from CSV into SQL database (Correction 2)."""
-    if not os.path.exists(POS_CSV_PATH):
-        logger.warning(f"POS CSV file not found at {POS_CSV_PATH}. Table left empty.")
-        return
-    
-    try:
-        logger.info(f"Loading POS data from {POS_CSV_PATH}...")
-        # Read the CSV with columns matching target data
-        df = pd.read_csv(
-            POS_CSV_PATH,
-            usecols=['order_id', 'store_id', 'order_date', 'order_time', 'total_amount']
-        )
-        
-        # Group by transaction parameters to combine multiple line items per order
-        df = df.groupby(['order_id', 'store_id', 'order_date', 'order_time'], as_index=False)['total_amount'].sum()
-        
-        # Convert date/time columns to ISO-8601 strings in IST (Correction 1 & 2)
-        df['timestamp'] = df.apply(
-            lambda r: datetime.strptime(
-                f"{r['order_date']} {r['order_time']}", "%d-%m-%Y %H:%M:%S"
-            ).replace(tzinfo=IST).isoformat(), axis=1
-        )
-        
-        # Rename columns to match db schema
-        df = df.rename(columns={
-            'order_id': 'transaction_id',
-            'total_amount': 'basket_value_inr'
-        })
-        
-        # Write to SQLite
-        records = df[['transaction_id', 'store_id', 'timestamp', 'basket_value_inr']]
-        records.to_sql('pos_transactions', con=conn, if_exists='append', index=False)
-        logger.info(f"Successfully loaded {len(records)} transactions into pos_transactions table.")
-    except Exception as e:
-        logger.error(f"Failed to load POS data: {e}", exc_info=True)
+    # 1. Load Store 1 POS (ST1008)
+    if os.path.exists(POS_CSV_PATH):
+        try:
+            logger.info(f"Loading Store 1 POS data from {POS_CSV_PATH}...")
+            df = pd.read_csv(
+                POS_CSV_PATH,
+                usecols=['order_id', 'store_id', 'order_date', 'order_time', 'total_amount']
+            )
+            df = df.groupby(['order_id', 'store_id', 'order_date', 'order_time'], as_index=False)['total_amount'].sum()
+            df['timestamp'] = df.apply(
+                lambda r: datetime.strptime(
+                    f"{r['order_date']} {r['order_time']}", "%d-%m-%Y %H:%M:%S"
+                ).replace(tzinfo=IST).isoformat(), axis=1
+            )
+            df = df.rename(columns={
+                'order_id': 'transaction_id',
+                'total_amount': 'basket_value_inr'
+            })
+            records = df[['transaction_id', 'store_id', 'timestamp', 'basket_value_inr']]
+            records.to_sql('pos_transactions', con=conn, if_exists='append', index=False)
+            logger.info(f"Successfully loaded {len(records)} transactions for Store 1 (ST1008).")
+        except Exception as e:
+            logger.error(f"Failed to load Store 1 POS data: {e}", exc_info=True)
+    else:
+        logger.warning(f"Store 1 POS CSV file not found at {POS_CSV_PATH}.")
+
+    # 2. Load Store 2 POS (ST1009)
+    store_2_csv = os.path.join(os.path.dirname(POS_CSV_PATH), 'store_2_pos_transactions.csv')
+    if os.path.exists(store_2_csv):
+        try:
+            logger.info(f"Loading Store 2 POS data from {store_2_csv}...")
+            df2 = pd.read_csv(
+                store_2_csv,
+                usecols=['order_id', 'store_id', 'order_date', 'order_time', 'total_amount']
+            )
+            # Override store_id to ST1009 to distinguish it from ST1008
+            df2['store_id'] = 'ST1009'
+            df2 = df2.groupby(['order_id', 'store_id', 'order_date', 'order_time'], as_index=False)['total_amount'].sum()
+            df2['timestamp'] = df2.apply(
+                lambda r: datetime.strptime(
+                    f"{r['order_date']} {r['order_time']}", "%d-%m-%Y %H:%M:%S"
+                ).replace(tzinfo=IST).isoformat(), axis=1
+            )
+            df2 = df2.rename(columns={
+                'order_id': 'transaction_id',
+                'total_amount': 'basket_value_inr'
+            })
+            records2 = df2[['transaction_id', 'store_id', 'timestamp', 'basket_value_inr']]
+            records2.to_sql('pos_transactions', con=conn, if_exists='append', index=False)
+            logger.info(f"Successfully loaded {len(records2)} transactions for Store 2 (ST1009).")
+        except Exception as e:
+            logger.error(f"Failed to load Store 2 POS data: {e}", exc_info=True)
+    else:
+        logger.warning(f"Store 2 POS CSV file not found at {store_2_csv}.")
 
 async def get_db_conn():
     """Dependency for obtaining an async database connection."""

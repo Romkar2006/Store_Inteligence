@@ -9,7 +9,7 @@ services:
     env_file:
       - .env
     volumes:
-      - ./data:/app/data         # pos_transactions.csv and video feeds live here
+      - ./data:/app/data:ro      # pos_transactions.csv and video feeds live here
       - sqlite_data:/app/db
     environment:
       - DB_PATH=/app/db/store_intelligence.db
