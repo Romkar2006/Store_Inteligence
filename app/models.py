@@ -82,3 +82,13 @@ class HealthResponse(BaseModel):
     stale_feeds: List[str]
     uptime_seconds: int
     checked_at: str
+
+class AskRequest(BaseModel):
+    question: str
+
+class AskResponse(BaseModel):
+    store_id: str
+    question: str
+    answer: str
+    mode: str
+
