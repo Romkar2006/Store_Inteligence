@@ -200,25 +200,25 @@ Once the Live Web Dashboard and WebSocket broadcasters are deployed, the end-to-
 
 ```mermaid
 graph TD
-    subgraph Client Layer [Client Layer (Hosted on Vercel)]
+    subgraph Client_Layer ["Client Layer (Hosted on Vercel)"]
         React[Vite React Dashboard]
     end
 
-    subgraph Streaming Layer [Real-Time Streams]
+    subgraph Streaming_Layer ["Real-Time Streams"]
         WS[WebSocket Stream wss://]
         REST[REST API HTTP https://]
     end
 
-    subgraph Service Layer [Service Layer (Hosted on Render)]
+    subgraph Service_Layer ["Service Layer (Hosted on Render)"]
         FastAPI[FastAPI Server]
         WM[WebSocket Connection Manager]
     end
 
-    subgraph Storage [Storage Layer]
+    subgraph Storage_Layer ["Storage Layer"]
         SQLite[(SQLite Database)]
     end
 
-    subgraph Ingestion Layer [Data Source Ingest]
+    subgraph Ingestion_Layer ["Data Source Ingest"]
         CV[CV Pipelines Store 1 & 2]
     end
 
