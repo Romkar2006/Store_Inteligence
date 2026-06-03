@@ -22,5 +22,14 @@ services:
       timeout: 5s
       retries: 5
 
+  dashboard:
+    image: node:20-alpine
+    working_dir: /app
+    volumes:
+      - ./dashboard-web:/app
+    ports: ["5173:5173"]
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    depends_on: [api]
+
 volumes:
   sqlite_data:

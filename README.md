@@ -167,6 +167,23 @@ The Store Intelligence System operates as an asynchronous, event-driven pipeline
 4. **Idempotent Storage**: FastAPI digests event batches, verifies event ID uniqueness, and stores records in SQLite via SQLAlchemy Core, updating KPIs dynamically.
 5. **Real-time REST APIs**: Serving metrics, heatmaps, operational anomalies (like queue depth warnings), and drop-off funnels to clients.
 6. **Live Terminal Monitor**: Uses `rich.live` to fetch API state and replay ingested logs at 10x speed.
+7. **Live Web Dashboard**: Polling-based React web interface with real-time zone heatmap visual layout.
+
+## Live Web Dashboard
+
+```bash
+cd dashboard-web && npm install && npm run dev
+```
+
+Visit http://localhost:5173
+
+Features:
+- Store floorplan with live zone heatmap (green = low, dark green = high)
+- KPI row: visitors, conversion rate, queue depth, abandonment rate
+- Anomaly banner when queue > 4 or conversion drops
+- Hover tooltips per zone (dwell time, visit count, confidence)
+- Auto-refreshes every 5 seconds via polling
+- Recharts horizontal bar for dwell time comparison
 
 See docs/DESIGN.md for full architecture and AI-assisted decisions.
 See docs/CHOICES.md for engineering trade-off reasoning.
