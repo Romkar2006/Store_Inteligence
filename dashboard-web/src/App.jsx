@@ -6,7 +6,8 @@ import {
 import { 
   Activity, Users, ShoppingCart, Percent, AlertTriangle, 
   RefreshCw, CheckCircle, HelpCircle, Shield, Clock, TrendingUp,
-  MapPin, Eye, Store, Terminal, Layers, Camera, ShieldCheck, UserCheck
+  MapPin, Eye, Store, Terminal, Layers, Camera, ShieldCheck, UserCheck,
+  Sparkles, Send, Bot, User, Loader2
 } from "lucide-react";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
@@ -78,9 +79,60 @@ export default function App() {
   const [wsStatus, setWsStatus] = useState("connecting"); // 'connected' | 'disconnected' | 'connecting'
   const [hoveredZone, setHoveredZone] = useState(null); // { zone, layout }
   const [selectedZone, setSelectedZone] = useState(null);
-  const [sidebarTab, setSidebarTab] = useState("inspector"); // 'inspector' | 'staff'
+  const [sidebarTab, setSidebarTab] = useState("inspector"); // 'inspector' | 'staff' | 'ask'
+  const [askQuestion, setAskQuestion] = useState("");
+  const [askHistory, setAskHistory] = useState([
+    {
+      sender: "bot",
+      text: "Hello! I am your Purplle Store Intelligence AI Assistant. Ask me anything about store operations today (e.g. dwell times, conversion rates, queues, or anomalies).",
+      mode: "system"
+    }
+  ]);
+  const [askLoading, setAskLoading] = useState(false);
   
   const wsRef = useRef(null);
+  const chatEndRef = useRef(null);
+
+  useEffect(() => {
+    if (chatEndRef.current) {
+      chatEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [askHistory, sidebarTab]);
+
+  const handleAskSubmit = async (questionText = askQuestion) => {
+    const trimmed = questionText.trim();
+    if (!trimmed || askLoading) return;
+
+    // Add user message to history
+    setAskHistory(prev => [...prev, { sender: "user", text: trimmed }]);
+    setAskQuestion("");
+    setAskLoading(true);
+
+    try {
+      const response = await fetch(`${API_BASE}/stores/${storeId}/ask`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question: trimmed })
+      });
+      if (!response.ok) {
+        throw new Error(`Server returned error: ${response.statusText}`);
+      }
+      const data = await response.json();
+      setAskHistory(prev => [...prev, { 
+        sender: "bot", 
+        text: data.answer, 
+        mode: data.mode 
+      }]);
+    } catch (err) {
+      setAskHistory(prev => [...prev, { 
+        sender: "bot", 
+        text: `Error connecting to AI service: ${err.message}. Please check your backend connection.`, 
+        mode: "error" 
+      }]);
+    } finally {
+      setAskLoading(false);
+    }
+  };
 
   // Fetch initial data
   const fetchAllData = useCallback(async (targetStoreId = storeId) => {
@@ -185,6 +237,13 @@ export default function App() {
     setStoreId(newStoreId);
     setSelectedZone(null);
     setHoveredZone(null);
+    setAskHistory([
+      {
+        sender: "bot",
+        text: `Hello! I am your Purplle Store Intelligence AI Assistant. Ask me anything about store operations today for ${newStoreId === "ST1008" ? "Brigade Road Store" : "Phoenix Marketcity Store"} (e.g. dwell times, conversion rates, queues, or anomalies).`,
+        mode: "system"
+      }
+    ]);
   };
 
   // Process data for Recharts
@@ -553,7 +612,7 @@ export default function App() {
           <div className="border-b border-slate-800 flex bg-slate-900/60">
             <button
               onClick={() => setSidebarTab("inspector")}
-              className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-all flex items-center justify-center gap-1.5 ${
+              className={`flex-grow py-3 text-[10px] font-bold uppercase tracking-wider border-b-2 transition-all flex items-center justify-center gap-1 ${
                 sidebarTab === "inspector" 
                   ? "border-purple-500 text-purple-400 bg-slate-900/40 font-extrabold" 
                   : "border-transparent text-slate-500 hover:text-slate-300"
@@ -564,18 +623,29 @@ export default function App() {
             </button>
             <button
               onClick={() => setSidebarTab("staff")}
-              className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-all flex items-center justify-center gap-1.5 ${
+              className={`flex-grow py-3 text-[10px] font-bold uppercase tracking-wider border-b-2 transition-all flex items-center justify-center gap-1 ${
                 sidebarTab === "staff" 
                   ? "border-purple-500 text-purple-400 bg-slate-900/40 font-extrabold" 
                   : "border-transparent text-slate-500 hover:text-slate-300"
               }`}
             >
               <ShieldCheck className="h-3.5 w-3.5" />
-              Staff Tracker
+              Staff
+            </button>
+            <button
+              onClick={() => setSidebarTab("ask")}
+              className={`flex-grow py-3 text-[10px] font-bold uppercase tracking-wider border-b-2 transition-all flex items-center justify-center gap-1 ${
+                sidebarTab === "ask" 
+                  ? "border-purple-500 text-purple-400 bg-slate-900/40 font-extrabold" 
+                  : "border-transparent text-slate-500 hover:text-slate-300"
+              }`}
+            >
+              <Sparkles className="h-3.5 w-3.5 text-purple-400" />
+              Ask AI
             </button>
           </div>
           
-          <div className="p-4 flex-1 flex flex-col justify-between">
+          <div className="p-4 flex-grow flex flex-col justify-between overflow-hidden">
             {sidebarTab === "inspector" ? (
               <div>
                 {selectedZone ? (
@@ -626,7 +696,7 @@ export default function App() {
                   </div>
                 )}
               </div>
-            ) : (
+            ) : sidebarTab === "staff" ? (
               <div>
                 {/* Staff Tracking Panel */}
                 <div className="border-b border-slate-800 pb-3 mb-3">
@@ -661,7 +731,7 @@ export default function App() {
                   <div className="bg-slate-950/60 p-2.5 rounded-lg border border-slate-850 flex items-center justify-between">
                     <span className="text-slate-400">ReID Descriptor</span>
                     <span className="font-bold text-emerald-400 text-[10px] flex items-center gap-1">
-                      <CheckCircle className="h-3 w-3" /> Torso Matching
+                      <CheckCircle className="h-3.5 w-3.5" /> Torso Matching
                     </span>
                   </div>
                 </div>
@@ -682,6 +752,108 @@ export default function App() {
                     )}
                   </div>
                 </div>
+              </div>
+            ) : (
+              <div className="flex-grow flex flex-col justify-between overflow-hidden h-[340px]">
+                {/* Chat Message Window */}
+                <div className="flex-1 overflow-y-auto pr-1 flex flex-col gap-2.5 scrollbar-thin scroll-smooth min-h-0">
+                  {askHistory.map((msg, idx) => (
+                    <div key={idx} className={`flex flex-col ${msg.sender === "user" ? "items-end" : "items-start"}`}>
+                      <div className={`max-w-[90%] rounded-xl p-2.5 text-xs leading-relaxed shadow-lg ${
+                        msg.sender === "user" 
+                          ? "bg-purple-600/90 text-white rounded-br-none border border-purple-500/20" 
+                          : msg.mode === "system"
+                            ? "bg-slate-950 border border-slate-800/80 text-purple-300 italic"
+                            : "bg-slate-950/80 border border-slate-800 text-slate-200 rounded-bl-none"
+                      }`}>
+                        <div className="flex items-center gap-1.5 mb-1 text-[9px] font-extrabold uppercase tracking-wide text-slate-500">
+                          {msg.sender === "user" ? (
+                            <>
+                              <span>You</span>
+                              <User className="h-3 w-3 text-purple-400" />
+                            </>
+                          ) : (
+                            <>
+                              <Bot className="h-3 w-3 text-purple-400" />
+                              <span>Purplle AI</span>
+                            </>
+                          )}
+                        </div>
+                        <p className="whitespace-pre-wrap">{msg.text}</p>
+                        
+                        {msg.sender === "bot" && msg.mode && msg.mode !== "system" && (
+                          <div className="mt-1.5 flex justify-end">
+                            <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded border flex items-center gap-1 ${
+                              msg.mode === "genai" 
+                                ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" 
+                                : msg.mode === "fallback" 
+                                  ? "bg-amber-500/10 text-amber-400 border-amber-500/20" 
+                                  : "bg-red-500/10 text-red-400 border-red-500/20"
+                            }`}>
+                              <Sparkles className="h-2.5 w-2.5 text-purple-400" />
+                              {msg.mode === "genai" ? "Gemini 2.5 Flash" : msg.mode === "fallback" ? "Rule Engine Fallback" : "System Alert"}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                  {askLoading && (
+                    <div className="flex items-start gap-2">
+                      <div className="max-w-[90%] rounded-xl p-2.5 text-xs bg-slate-950 border border-slate-800 text-slate-400 rounded-bl-none flex items-center gap-2">
+                        <Loader2 className="h-3.5 w-3.5 text-purple-400 animate-spin" />
+                        <span className="font-semibold text-slate-500 italic">Thinking...</span>
+                      </div>
+                    </div>
+                  )}
+                  <div ref={chatEndRef} />
+                </div>
+
+                {/* Suggestion Chips */}
+                <div className="mt-2 border-t border-slate-850 pt-2 flex-shrink-0">
+                  <div className="flex flex-wrap gap-1.5 max-h-16 overflow-y-auto scrollbar-none">
+                    {[
+                      "Which zone had the most dwell time today?",
+                      "How many customers abandoned the billing queue?",
+                      "What is the purchase conversion rate?",
+                      "Tell me the store anomalies"
+                    ].map((q, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => handleAskSubmit(q)}
+                        disabled={askLoading}
+                        className="text-[9px] px-2 py-1 rounded-md bg-slate-950 border border-slate-850 hover:bg-slate-800 hover:border-slate-700 text-slate-400 hover:text-white font-medium transition-all text-left truncate max-w-full"
+                      >
+                        {q}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Input Form */}
+                <form 
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    handleAskSubmit();
+                  }}
+                  className="mt-2 flex items-center gap-1.5 flex-shrink-0"
+                >
+                  <input
+                    type="text"
+                    value={askQuestion}
+                    onChange={(e) => setAskQuestion(e.target.value)}
+                    disabled={askLoading}
+                    placeholder="Ask about operations..."
+                    className="flex-1 bg-slate-950 border border-slate-850 rounded-lg py-2 px-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-purple-500/50 focus:border-purple-500 disabled:opacity-50"
+                  />
+                  <button
+                    type="submit"
+                    disabled={askLoading || !askQuestion.trim()}
+                    className="p-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-white disabled:opacity-50 transition-all shadow-md shadow-purple-500/10 flex items-center justify-center"
+                  >
+                    <Send className="h-3.5 w-3.5" />
+                  </button>
+                </form>
               </div>
             )}
 
