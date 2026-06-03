@@ -1,266 +1,212 @@
-# Store Intelligence System — Purplle Brigade Road (ST1008)
+# Store Intelligence System — Retail Behavioral Analytics Pipeline
 
-End-to-end retail analytics pipeline: raw CCTV footage → behavioral events → real-time FastAPI analytics.
+An end-to-end retail analytics pipeline that converts raw unstructured CCTV video footage and structured POS logs into real-time retail insights. Featuring a premium dark-mode React dashboard with interactive 2D floorplan heatmaps, real-time WebSocket connection logging, and custom Sankey visitor journey flow animations.
 
-## Quick Start (5 commands)
+---
+
+## File Structure
+
+Below is the consolidated, clean root-level directory layout of the project:
+
+```
+store-intelligence-pipeline-setup/
+├── app/                       # FastAPI Backend Application
+│   ├── main.py                # Server Entrypoint & Router Registrations
+│   ├── ask.py                 # Gemini AI Conversational Analytics Route
+│   ├── flow.py                # Visitor Journey Sequence Compiler Route
+│   ├── ingestion.py           # Behavioral Event Ingest & WebSocket Broadcasts
+│   ├── websocket.py           # Live WebSocket Subscription Manager
+│   ├── models.py              # Pydantic schemas (Ask, Flow, Ingest)
+│   ├── db.py                  # POS Data Loader & Database Utilities
+│   └── config.py              # Path and Env resolution config
+├── dashboard-web/             # React + Tailwind CSS + Vite Frontend
+│   ├── src/
+│   │   ├── App.jsx            # Main Dashboard & UI Components
+│   │   └── index.css          # Tailwind Directives & Custom Animations
+│   ├── tailwind.config.js     # Glassmorphic Styling Configuration
+│   ├── postcss.config.js      # PostCSS Configuration
+│   ├── package.json           # Frontend Dependencies (Recharts, Lucide, etc.)
+│   └── vite.config.js         # Vite configuration
+├── pipeline/                  # Computer Vision Tracking Pipelines
+│   ├── detect_store_2.py      # Store 2 (Phoenix Marketcity) CV Pipeline
+│   ├── cam_entry_store_2.py   # Store 2 Entrance crossing logic
+│   ├── cam_zones_store_2.py   # Store 2 Quadrant collision checking
+│   ├── cam_billing.py         # Checkout queue tracker
+│   ├── run_store_2.sh         # Store 2 pipeline orchestrator
+│   └── run.sh                 # Store 1 pipeline orchestrator
+├── data/                      # Local Data Storage
+│   ├── pos_transactions.csv   # Store 1 POS data
+│   └── store_2_pos_transactions.csv # Store 2 POS data
+├── tests/                     # Automated Test Suites
+│   ├── test_ask.py            # AI Conversational Query tests
+│   ├── test_flow.py           # Sankey journey sequence compiler tests
+│   └── test_websocket.py      # Real-time WebSocket transmission tests
+├── .env                       # Environment Variables (Gemini API Key, local DB, etc.)
+├── store_intelligence.db      # Local Persistent SQLite database
+├── requirements.txt           # Python backend dependencies
+├── Dockerfile                 # Backend container definition
+└── docker-compose.yml         # Local orchestration file
+```
+
+---
+
+## Quick Start (4 commands)
+
+To spin up the system locally:
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/store-intelligence.git
-cd store-intelligence
+git clone https://github.com/Romkar2006/Store_Inteligence.git
+cd Store_Inteligence
 cp data/sample.env .env
 docker compose up --build -d
-bash pipeline/run.sh
 ```
 
-Visit: http://localhost:8000/stores/ST1008/metrics
+Visit the API metrics: [http://localhost:8000/stores/ST1008/metrics](http://localhost:8000/stores/ST1008/metrics)
 
-If you are working inside this workspace, use the project root directly:
+If you are working inside this workspace directory locally, use:
 
 ```powershell
-cd "C:\Users\Victus\OneDrive\Desktop\purple_tech\store-intelligence-pipeline-setup\store-intelligence"
+cd "C:\Users\Victus\OneDrive\Desktop\purple_tech\store-intelligence-pipeline-setup"
 docker compose up --build -d
 ```
 
-Do not run `uvicorn app.main:app` from the parent `purple_tech` folder. The `app` package lives inside the `store-intelligence` project root.
-
-## Prerequisites
-
-- Docker Desktop installed and running
-- Python 3.11+ (for running pipeline outside Docker)
-- Camera footage files placed in data/ (see data/README.md)
-
-## Docker Setup
-
-The recommended process is Docker Compose from the `store-intelligence` project root. That keeps the API, SQLite volume, and input data paths aligned with the container paths used in `Dockerfile` and `docker-compose.yml`.
-
-```powershell
-cd "C:\Users\Victus\OneDrive\Desktop\purple_tech\store-intelligence-pipeline-setup\store-intelligence"
-docker compose up --build -d
-docker compose ps
-curl -sS http://127.0.0.1:8000/health
-```
-
-## Setup Data Files
-
-```bash
-# Rename and place POS data
-cp /path/to/Brigade_Bangalore_10_April_26.csv data/pos_transactions.csv
-
-# Place camera files
-cp /path/to/CAM_*.mp4 data/
-```
-
-## Run the Detection Pipeline
-
-```bash
-# Processes all 5 cameras, generates events.jsonl
-bash pipeline/run.sh
-
-# Expected output: ~330 events in events.jsonl
-# Event types: ENTRY, EXIT, ZONE_ENTER, ZONE_EXIT,
-#              ZONE_DWELL, BILLING_QUEUE_JOIN,
-#              BILLING_QUEUE_ABANDON
-```
-
-## Run Tests
-
-```bash
-pip install -r requirements.txt
-pytest tests/ -v --tb=short
-# Expected: 26 passed, 84% coverage
-```
-
-## Live Dashboard (Bonus)
-
-```bash
-python dashboard/live_dashboard.py \
-	--events events.jsonl \
-	--store ST1008
-```
-
-## API Endpoints
-
-| Endpoint | Description |
-|----------|-------------|
-| GET /stores/{store_id}/metrics | Unique visitors, conversion rate, zone dwell |
-| GET /stores/{store_id}/funnel | Entry → Zone → Billing → Purchase |
-| GET /stores/{store_id}/heatmap | Zone heat scores normalised 0–100 |
-| GET /stores/{store_id}/anomalies | Queue spikes, conversion drops, dead zones |
-| POST /stores/{store_id}/ask | Natural Language Query AI grounding (Gemini RAG / Fallback rules) |
-| GET /health | Service status, stale feed detection |
-| POST /events/ingest | Batch event ingestion (idempotent) |
-
-## Expected Output Note
-
-The provided clips are a ~2-minute window (20:10–20:12 IST).
-The nearest POS transaction falls 13 minutes outside this window.
-The system correctly returns conversion_rate: 0.0 for this window.
-A full production deployment with day-long feeds would show real conversion data.
+---
 
 ## System Architecture
 
-The Store Intelligence System operates as an asynchronous, event-driven pipeline that converts raw unstructured video footage and structured POS logs into real-time retail insights:
+The complete system operates as an event-driven retail behavioral processing pipeline:
 
-```text
- ┌────────────────────────────────────────────────────────────────────────┐
- │                              INPUT SOURCES                             │
- │  ┌───────────────────────┐                  ┌───────────────────────┐  │
- │  │ 5x CCTV Camera Feeds  │                  │  POS Transactions CSV │  │
- │  │ (CAM_1 to CAM_5 - MP4)│                  │ (pos_transactions.csv)│  │
- │  └───────────┬───────────┘                  └───────────┬───────────┘  │
- └──────────────┼──────────────────────────────────────────┼──────────────┘
-                ▼                                          ▼
- ┌────────────────────────────────────────────────────────────────────────┐
- │                       COMPUTER VISION PIPELINE                         │
- │  ┌──────────────────────────────────────────────────────────────────┐  │
- │  │             YOLOv8 Detector + ByteTrack Object Tracking          │  │
- │  └──────────────────────────────────┬───────────────────────────────┘  │
- │                                     ▼                                  │
- │  ┌──────────────────────────────────────────────────────────────────┐  │
- │  │                    Custom Retail Logic Blocks                    │  │
- │  │  - CAM_3 (Entry Mat): Mat Crossing Foot-Tracker (y=580)          │  │
- │  │  - CAM_1 & 2 (Zone Dwelling): cv2.pointPolygonTest overlap       │  │
- │  │  - CAM_4 (Stockroom): HSV Upper-Body Feature Extractor (Re-ID)   │  │
- │  │  - CAM_5 (Billing Queue): Queue join/abandon tracker             │  │
- │  └──────────────────────────────────┬───────────────────────────────┘  │
- └─────────────────────────────────────┼──────────────────────────────────┘
-                                       ▼
- ┌────────────────────────────────────────────────────────────────────────┐
- │                             INGESTION STREAM                           │
- │  ┌──────────────────────────────────────────────────────────────────┐  │
- │  │                Structured JSON Events (events.jsonl)             │  │
- │  └──────────────────────────────────┬───────────────────────────────┘  │
- │                                     ▼                                  │
- │  ┌──────────────────────────────────────────────────────────────────┐  │
- │  │                    FastAPI POST /events/ingest                   │  │
- │  └──────────────────────────────────┬───────────────────────────────┘  │
- └─────────────────────────────────────┼──────────────────────────────────┘
-                                       ▼
- ┌────────────────────────────────────────────────────────────────────────┐
- │                      STORAGE & ANALYTICS PORTAL                        │
- │  ┌──────────────────────────────────────────────────────────────────┐  │
- │  │                    SQLAlchemy Database Service                   │  │
- │  └──────────────────────────────────┬───────────────────────────────┘  │
- │                                     ▼                                  │
- │  ┌──────────────────────────────────────────────────────────────────┐  │
- │  │                Persistent SQLite Volume (store_intelligence.db)  │  │
- │  └──────────────────────────────────┬───────────────────────────────┘  │
- │                                     ▼                                  │
- │  ┌──────────────────────────────────────────────────────────────────┐  │
- │  │                REST API Get Analytics Endpoints                  │  │
- │  │                - /metrics, /funnel, /heatmap, /anomalies         │  │
- │  └──────────────────────────────────┬───────────────────────────────┘  │
- └─────────────────────────────────────┼──────────────────────────────────┘
-                                       ▼
- ┌────────────────────────────────────────────────────────────────────────┐
- │                             CLIENT ACCESS                              │
- │  ┌───────────────────────┐                  ┌───────────────────────┐  │
- │  │  Rich Terminal UI     │                  │   Local Browser View  │  │
- │  │  (live_dashboard.py)  │                  │  (Metrics/Funnel APIs)│  │
- │  └───────────────────────┘                  └───────────────────────┘  │
- └────────────────────────────────────────────────────────────────────────┘
+```mermaid
+%%{init: {'theme': 'dark', 'themeVariables': { 'primaryColor': '#a78bfa', 'primaryTextColor': '#f8fafc', 'primaryBorderColor': '#7c3aed', 'lineColor': '#a78bfa', 'secondaryColor': '#1e1b4b', 'tertiaryColor': '#0f172a'}}}%%
+graph TD
+    %% Node Definitions
+    subgraph Data_Sources ["1. Input Data Layer"]
+        CCTV["5x CCTV Camera Feeds<br/>(H.264 MP4 - ST1008 / ST1009)"]
+        POS["POS Transaction Logs<br/>(CSV Files)"]
+    end
+
+    subgraph CV_Engine ["2. Computer Vision Pipeline (Python)"]
+        YOLO["YOLOv8 Object Detector<br/>(Human centroid coordinates)"]
+        Tracker["ByteTrack Multi-Object Tracker<br/>(Persistent Visitor IDs)"]
+        Geometry["Custom Retail Logic<br/>- Foot-crossing Lines (Entries/Exits)<br/>- Spatial Polygons (Dwell Times)<br/>- Quadrant Collisions (Zones)"]
+        ReID["HSV Upper-Body Histogram Re-ID<br/>(Filters employee traffic)"]
+    end
+
+    subgraph Ingest_Bus ["3. Ingestion & Event Stream"]
+        JSONL["Events Log File<br/>(events.jsonl)"]
+        IngestAPI["FastAPI POST /events/ingest<br/>(Idempotent Bulk Loader)"]
+    end
+
+    subgraph Backend_Core ["4. Storage & Core Services (FastAPI)"]
+        DB[(SQLite DB + SQLAlchemy Core)]
+        WSMgr["WebSocket Connection Manager<br/>(Event-driven broadcasts)"]
+        FlowComp["Journey Sequence Compiler<br/>(POS Correlation + Dropouts)"]
+        GeminiAI["Gemini 2.5 Flash Engine<br/>(Natural Language Grounding)"]
+    end
+
+    subgraph Client_App ["5. Client Presentation Layer"]
+        ViteReact["Vite React Dashboard<br/>- Interactive 2D Heatmap<br/>- Scrolling Live Ticker Log<br/>- Sankey Visitor Flow Diagram<br/>- Ask AI Chatbot Interface"]
+        TerminalUI["Terminal Live Monitor<br/>(rich.live terminal feed)"]
+    end
+
+    %% Edge Connections
+    CCTV --> YOLO
+    YOLO --> Tracker
+    Tracker --> Geometry
+    Geometry --> ReID
+    ReID -->|Generates behavior logs| JSONL
+    JSONL --> IngestAPI
+    POS -->|Loaded at startup| DB
+    IngestAPI -->|Writes records| DB
+    IngestAPI -->|Triggers WebSocket broadcast| WSMgr
+    WSMgr -->|Live JSON event stream| ViteReact
+    ViteReact -->|GET Requests| FlowComp
+    ViteReact -->|GET Requests| DB
+    FlowComp -->|Fetches sequences & transactions| DB
+    ViteReact -->|POST Ask AI| GeminiAI
+    GeminiAI -->|Fetches context metrics| DB
+
+    %% Apply CSS Styles
+    classDef default fill:#1e293b,stroke:#475569,stroke-width:1px,color:#f8fafc;
+    classDef source fill:#1e1b4b,stroke:#6366f1,stroke-width:2px,color:#e0e7ff,font-weight:bold;
+    classDef cv fill:#311042,stroke:#d946ef,stroke-width:2px,color:#fdf4ff,font-weight:bold;
+    classDef ingest fill:#4c1d95,stroke:#8b5cf6,stroke-width:2px,color:#ede9fe,font-weight:bold;
+    classDef backend fill:#064e3b,stroke:#10b981,stroke-width:2px,color:#ecfdf5,font-weight:bold;
+    classDef client fill:#581c0c,stroke:#f97316,stroke-width:2px,color:#fff7ed,font-weight:bold;
+
+    class CCTV,POS source;
+    class YOLO,Tracker,Geometry,ReID cv;
+    class JSONL,IngestAPI ingest;
+    class DB,WSMgr,FlowComp,GeminiAI backend;
+    class ViteReact,TerminalUI client;
 ```
 
 ### Core Architecture Components
-1. **Unstructured Data Ingestion**: The system consumes H.264 compressed MP4 retail camera video clips. All timestamps are localized to Indian Standard Time (IST, UTC+5:30) to prevent clock drift.
-2. **Object Detection & Re-ID**: YOLOv8 is used for robust human detection. Upper-body crop HSV color histograms are compiled on stockroom tracks (CAM_4) to uniquely identify employees and filter them out of consumer metric evaluations using cosine similarity.
-3. **Behavioral Inference**: Custom geometry modules run foot-tracking intersection metrics (for entries/exits) and spatial polygon checks (for zone dwell times) on human tracks.
-4. **Idempotent Storage**: FastAPI digests event batches, verifies event ID uniqueness, and stores records in SQLite via SQLAlchemy Core, updating KPIs dynamically.
-5. **Real-time REST APIs**: Serving metrics, heatmaps, operational anomalies (like queue depth warnings), and drop-off funnels to clients.
-6. **Live Terminal Monitor**: Uses `rich.live` to fetch API state and replay ingested logs at 10x speed.
-7. **Live Web Dashboard**: Real-time React + Tailwind CSS dashboard with live zone heatmaps, WebSockets stream integration, simulated CCTV matrix, and dual-store support.
 
-## Live Web Dashboard (Upgraded)
+1. **Unstructured Data Ingestion (CCTV)**: The pipeline processes high-definition H.264 camera footage. Centroids of detected humans are monitored continuously. Timestamps are computed in Indian Standard Time (IST, UTC+5:30) to remain fully aligned.
+2. **Object Tracking & Re-ID**: ByteTrack assigns persistent IDs. An HSV upper-body color histogram extractor runs cosine similarity checks to classify store staff, filtering out their events so analytics metrics remain accurate.
+3. **Behavioral Inference**: Foot-crossing lines and polygon overlaps determine entry, exit, and dwell times per zone. Queue join and abandon algorithms track billing metrics.
+4. **Idempotent Ingestion Service**: The FastAPI `/events/ingest` endpoint filters duplicates and saves unique events in SQLite. It instantly triggers background WebSocket broadcasts to notify all connected dashboards.
+5. **Visitor Journey Compiler (Sankey Flow)**: Resolves the chronological flow of visitors across store zones (`Entry` → `Skincare/Navigation` → `Makeup` → `Billing` → `Exit`). It checks POS transactions within a 5-minute checkout window to classify "Billing" conversions vs. dropouts.
+6. **AI Grounding Engine**: Integrates Google Gemini 2.5 Flash API with local SQLite contexts to answer analytical questions in plain English, with a rule-based regex engine serving as a fallback.
 
-The dashboard has been upgraded from a basic polling client to a premium, real-time analytics command center:
+---
+
+## Live Web Dashboard (React + Vite)
+
+The upgraded dashboard serves as a premium, real-time command center:
 
 ```bash
-# Go to dashboard directory
+# Navigate to the dashboard
 cd dashboard-web
 
-# Install dependencies and start the Vite dev server
+# Install packages & launch dev server
 npm install
 npm run dev
 ```
 
-Visit: **http://localhost:5173**
+Visit the dashboard: **http://localhost:5173**
 
-### Premium Dashboard Features:
-- **Dual-Store Analytics**: Dynamically toggles layouts, stats, and CCTV streams between Brigade Road (`ST1008` / Store 1) and Phoenix Marketcity (`ST1009` / Store 2).
-- **Sub-Second WebSocket Ingest Log**: Connects via `wss://` / `ws://` to log newly processed events in real-time, instantly repainting metrics and heat scores without page refreshes.
-- **Interactive 2D Floorplan Heatmap**: Dynamically color-codes retail zones based on normalized average dwell times. Features hover detail cards and click-to-inspect zone analysis.
-- **Simulated CCTV Video Feeds Matrix**: A 2x2 surveillance monitoring grid showing camera labels, active object detections, confidence indices, and warning alarms (e.g. flashing **"QUEUE SPIKE"** flags on the checkout camera).
-- **Staff ReID Activity Monitor**: A dedicated sidebar panel tracking staff classifications, ReID model template checks, and a live progress indicator mapping customer vs. staff event ratios.
-- **Advanced Recharts Integration**: Interactive area charts mapping shopper conversion funnels (`ENTRY` → `ZONE_VISIT` → `BILLING_QUEUE` → `PURCHASE`) and horizontal bar charts mapping average dwells.
-- **Conversational Ask AI Analytics**: A sleek panel in the dashboard sidebar to ask operational questions in plain English (e.g., "Which zone had the most traffic today?"). Integrates automatic scrolling, suggestion chips, loading states, and glowing grounding badges.
+### Key Features:
+- **Dual-Store Support**: Click-toggle layouts and statistics between Brigade Road (`ST1008`) and Phoenix Marketcity (`ST1009`).
+- **Interactive 2D Floorplan Heatmap**: Dynamically colors retail zones according to dwell times, complete with hover stats and click inspections.
+- **WebSocket Streaming Event Ticker**: Displays live connection status and scrolls newly processed raw events as they occur.
+- **Animated Sankey Visitor Flow**: Visualizes customer conversions and dropouts using curved SVG ribbons with flowing particle animations.
+- **Conversational Ask AI Chat Panel**: Submit natural language queries directly inside the sidebar, featuring quick-suggestion chips and glowing model grounding badges.
 
 ---
 
-## System Architecture (Real-Time Web Dashboard)
+## API Endpoints Reference
 
-Once the Live Web Dashboard and WebSocket broadcasters are deployed, the end-to-end data flow operates as follows:
-
-```mermaid
-graph TD
-    subgraph Client_Layer ["Client Layer (Hosted on Vercel)"]
-        React[Vite React Dashboard]
-    end
-
-    subgraph Streaming_Layer ["Real-Time Streams"]
-        WS[WebSocket Stream wss://]
-        REST[REST API HTTP https://]
-    end
-
-    subgraph Service_Layer ["Service Layer (Hosted on Render)"]
-        FastAPI[FastAPI Server]
-        WM[WebSocket Connection Manager]
-    end
-
-    subgraph Storage_Layer ["Storage Layer"]
-        SQLite[(SQLite Database)]
-    end
-
-    subgraph Ingestion_Layer ["Data Source Ingest"]
-        CV[CV Pipelines Store 1 & 2]
-    end
-
-    CV -->|HTTP POST /events/ingest| FastAPI
-    FastAPI -->|Background Task Broadcast| WM
-    WM -->|Real-Time Broadcast| React
-    React -->|HTTP GET Metrics/Heatmap| FastAPI
-    FastAPI -->|SQLAlchemy Async| SQLite
-```
-
-### Key Production Enhancements:
-1. **Dynamic Environment Configuration**: The React frontend dynamically loads the hosted backend address via `VITE_API_BASE`.
-2. **Auto-Deriving WebSocket Channels**: The client automatically extracts the domain name and securely negotiates the protocol (falling back to secure `wss://` on HTTPS and standard `ws://` on local HTTP).
-3. **Structured Analytics logging**: The FastAPI backend records trace IDs, endpoint latency, status codes, and batch ingestion stats in a structured JSON format (`structlog`).
-4. **Resilient Error Boundaries**: Incorporates database outage checks returning `503 Service Unavailable` and structured error responses.
+| Route | Method | Description |
+|---|---|---|
+| `/stores/{store_id}/metrics` | GET | Unique visitors, conversion rate, and average dwell times |
+| `/stores/{store_id}/funnel` | GET | Entry → Zone Visit → Billing Queue → Purchase funnel data |
+| `/stores/{store_id}/heatmap` | GET | Normalized zone heat values (0–100) for layouts |
+| `/stores/{store_id}/flow` | GET | Node and link transition counts for Sankey diagram |
+| `/stores/{store_id}/anomalies` | GET | Queue depth alerts, dead zones, and conversion drop metrics |
+| `/stores/{store_id}/ask` | POST | Ask natural language questions (Gemini AI RAG / Fallback rules) |
+| `/stores/{store_id}/ws` | WebSocket | Real-time event notifications stream |
+| `/events/ingest` | POST | Ingest bulk events (idempotent, triggers WS broadcasts) |
+| `/health` | GET | Service status and camera feed staleness check |
 
 ---
 
-## Cloud Deployment (Production Ready)
+## Cloud Deployment
 
 ### Frontend Deployment (Vercel)
-1. Link your GitHub repository to Vercel.
-2. Set the **Root Directory** settings to `dashboard-web`.
-3. Add the environment variable `VITE_API_BASE` set to your public API URL (e.g., `https://your-api.onrender.com`).
+1. Link your repository to Vercel.
+2. In the project settings, change the **Root Directory** to `dashboard-web`.
+3. Add the Environment Variable `VITE_API_BASE` set to your public FastAPI endpoint (e.g., `https://your-api.onrender.com`).
 4. Click **Deploy**.
 
 ### Backend Deployment (Render / Railway)
 1. Create a Web Service pointing to your repository.
-2. Leave the **Root Directory** field blank (build directly from the root).
+2. Leave the **Root Directory** field blank (build directly from the repository root).
 3. Set **Build Command** to `pip install -r requirements.txt`.
 4. Set **Start Command** to `python -m uvicorn app.main:app --host 0.0.0.0 --port 10000`.
-5. Add the environment variables:
+5. Define the environment variables:
    - `DB_PATH` = `store_intelligence.db`
    - `POS_CSV_PATH` = `data/pos_transactions.csv`
    - `GEMINI_API_KEY` = `your-google-gemini-api-key`
 6. Click **Deploy**.
-
----
-
-See docs/DESIGN.md for full architecture and AI-assisted decisions.
-See docs/CHOICES.md for engineering trade-off reasoning.
-
-
