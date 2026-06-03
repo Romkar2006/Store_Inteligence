@@ -9,7 +9,7 @@ import {
   MapPin, Eye, Store, Terminal, Layers, Camera, ShieldCheck, UserCheck
 } from "lucide-react";
 
-const API_BASE = "http://localhost:8000";
+const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
 
 // Zone layouts for the two stores
 const ZONE_LAYOUTS = {
@@ -123,7 +123,13 @@ export default function App() {
     }
 
     setWsStatus("connecting");
-    const wsUrl = `ws://${window.location.hostname}:8000/stores/${storeId}/ws`;
+    const isSecure = API_BASE.startsWith("https");
+    const wsProtocol = isSecure ? "wss" : "ws";
+    let wsHost = window.location.hostname + ":8000";
+    if (API_BASE.includes("://")) {
+      wsHost = API_BASE.split("://")[1];
+    }
+    const wsUrl = `${wsProtocol}://${wsHost}/stores/${storeId}/ws`;
     const socket = new WebSocket(wsUrl);
     wsRef.current = socket;
 
