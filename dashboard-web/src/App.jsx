@@ -6,7 +6,7 @@ import {
 import { 
   Activity, Users, ShoppingCart, Percent, AlertTriangle, 
   RefreshCw, CheckCircle, HelpCircle, Shield, Clock, TrendingUp,
-  MapPin, Eye, Store, Terminal, Layers
+  MapPin, Eye, Store, Terminal, Layers, Camera, ShieldCheck, UserCheck
 } from "lucide-react";
 
 const API_BASE = "http://localhost:8000";
@@ -27,6 +27,22 @@ const ZONE_LAYOUTS = {
     MK_GONDOLA_1:           { x: 5,  y: 48, w: 42, h: 42, label: "Makeup Gondola 1", category: "Makeup" },
     MAKEUP_TABLES:          { x: 51, y: 12, w: 44, h: 50, label: "Makeup Tables", category: "Makeup" },
     BILLING_COUNTER:        { x: 51, y: 68, w: 44, h: 22, label: "Billing Counter", category: "Billing" },
+  }
+};
+
+// Video Camera layouts for mock surveillance monitors
+const CAMERAS = {
+  ST1008: {
+    CAM_ENTRY_01: { label: "Main Front Entrance", feedName: "store_1_entry_1.mp4" },
+    CAM_ENTRY_02: { label: "Secondary Entrance", feedName: "store_1_entry_2.mp4" },
+    CAM_ZONE_01:  { label: "Makeup & Aisle Floor", feedName: "store_1_zone.mp4" },
+    CAM_BILLING_01: { label: "Checkout Queues", feedName: "store_1_billing.mp4" },
+  },
+  ST1009: {
+    CAM_ENTRY_01: { label: "Primary Entrance 1", feedName: "store_2_entry_1.mp4" },
+    CAM_ENTRY_02: { label: "Secondary Entrance 2", feedName: "store_2_entry_2.mp4" },
+    CAM_ZONE_01:  { label: "Main Aisle Gondolas", feedName: "store_2_zone.mp4" },
+    CAM_BILLING_01: { label: "Billing Counter Area", feedName: "store_2_billing.mp4" },
   }
 };
 
@@ -62,6 +78,7 @@ export default function App() {
   const [wsStatus, setWsStatus] = useState("connecting"); // 'connected' | 'disconnected' | 'connecting'
   const [hoveredZone, setHoveredZone] = useState(null); // { zone, layout }
   const [selectedZone, setSelectedZone] = useState(null);
+  const [sidebarTab, setSidebarTab] = useState("inspector"); // 'inspector' | 'staff'
   
   const wsRef = useRef(null);
 
@@ -167,6 +184,7 @@ export default function App() {
   // Process data for Recharts
   const zones = heatmap?.zones || [];
   const activeLayout = ZONE_LAYOUTS[storeId] || {};
+  const activeCameras = CAMERAS[storeId] || {};
   
   const sortedZones = [...zones].sort((a, b) => b.heat_score - a.heat_score);
   const dwellChartData = sortedZones
@@ -184,7 +202,12 @@ export default function App() {
     "Drop Off": stage.drop_off_pct,
   })) || [];
 
-  const queueAbandonmentRate = metrics ? Math.round(metrics.abandonment_rate * 100) : 0;
+  // Live Staff vs Customer counts from WebSocket feed
+  const liveStaffCount = liveEvents.filter(e => e.isStaff).length;
+  const liveCustomerCount = liveEvents.filter(e => !e.isStaff).length;
+  const totalLiveProcessed = liveStaffCount + liveCustomerCount;
+  const staffEventPct = totalLiveProcessed > 0 ? Math.round((liveStaffCount / totalLiveProcessed) * 100) : 0;
+  const customerEventPct = totalLiveProcessed > 0 ? 100 - staffEventPct : 0;
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 p-4 lg:p-6 selection:bg-purple-600 selection:text-white">
@@ -342,162 +365,317 @@ export default function App() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
         {/* Visual Floor Heatmap (2D plan) */}
-        <div className="lg:col-span-2 bg-slate-900 border border-slate-800/80 rounded-xl shadow-xl overflow-hidden">
-          <div className="border-b border-slate-800 px-4 py-3 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Eye className="h-4 w-4 text-purple-400" />
-              <h2 className="text-sm font-bold uppercase tracking-wider text-slate-300">Live 2D Floorplan Heatmap</h2>
-            </div>
-            <span className="text-[10px] text-slate-400 italic">Hover or click a zone to inspect</span>
-          </div>
-
-          <div className="p-6">
-            <div className="relative w-full aspect-[16/10] bg-slate-950 border border-slate-800 rounded-xl overflow-hidden">
-              
-              {/* Entries door marker */}
-              <div className="absolute right-0 top-[35%] w-2.5 h-16 bg-purple-500 rounded-l-md flex items-center justify-center shadow-lg shadow-purple-500/30">
-                <span className="text-[9px] font-bold text-white tracking-widest writing-mode-vertical uppercase">Door</span>
+        <div className="lg:col-span-2 flex flex-col gap-6">
+          
+          <div className="bg-slate-900 border border-slate-800/80 rounded-xl shadow-xl overflow-hidden">
+            <div className="border-b border-slate-800 px-4 py-3 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Eye className="h-4 w-4 text-purple-400" />
+                <h2 className="text-sm font-bold uppercase tracking-wider text-slate-300">Live 2D Floorplan Heatmap</h2>
               </div>
-              {storeId === "ST1009" && (
-                <div className="absolute left-0 top-[35%] w-2.5 h-16 bg-purple-500 rounded-r-md flex items-center justify-center shadow-lg shadow-purple-500/30">
-                  <span className="text-[9px] font-bold text-white tracking-widest writing-mode-vertical uppercase">Door 2</span>
+              <span className="text-[10px] text-slate-400 italic">Hover or click a zone to inspect</span>
+            </div>
+
+            <div className="p-6">
+              <div className="relative w-full aspect-[16/10] bg-slate-950 border border-slate-800 rounded-xl overflow-hidden">
+                
+                {/* Entries door marker */}
+                <div className="absolute right-0 top-[35%] w-2.5 h-16 bg-purple-500 rounded-l-md flex items-center justify-center shadow-lg shadow-purple-500/30">
+                  <span className="text-[9px] font-bold text-white tracking-widest writing-mode-vertical uppercase">Door</span>
                 </div>
-              )}
+                {storeId === "ST1009" && (
+                  <div className="absolute left-0 top-[35%] w-2.5 h-16 bg-purple-500 rounded-r-md flex items-center justify-center shadow-lg shadow-purple-500/30">
+                    <span className="text-[9px] font-bold text-white tracking-widest writing-mode-vertical uppercase">Door 2</span>
+                  </div>
+                )}
 
-              {/* Grid zones overlay */}
-              {zones.map((zone) => {
-                const layout = activeLayout[zone.zone_id];
-                if (!layout) return null;
-                const heat = getHeatColor(zone.heat_score);
-                const isSelected = selectedZone?.zone_id === zone.zone_id;
+                {/* Grid zones overlay */}
+                {zones.map((zone) => {
+                  const layout = activeLayout[zone.zone_id];
+                  if (!layout) return null;
+                  const heat = getHeatColor(zone.heat_score);
+                  const isSelected = selectedZone?.zone_id === zone.zone_id;
 
-                return (
-                  <div
-                    key={zone.zone_id}
-                    onMouseEnter={() => setHoveredZone({ zone, layout })}
-                    onMouseLeave={() => setHoveredZone(null)}
-                    onClick={() => setSelectedZone(isSelected ? null : zone)}
+                  return (
+                    <div
+                      key={zone.zone_id}
+                      onMouseEnter={() => setHoveredZone({ zone, layout })}
+                      onMouseLeave={() => setHoveredZone(null)}
+                      onClick={() => setSelectedZone(isSelected ? null : zone)}
+                      style={{
+                        position: "absolute",
+                        left: `${layout.x}%`,
+                        top: `${layout.y}%`,
+                        width: `${layout.w}%`,
+                        height: `${layout.h}%`
+                      }}
+                      className={`rounded-lg border-2 ${heat.border} ${heat.bg} cursor-pointer transition-all duration-300 flex flex-col items-center justify-center p-2 text-center select-none shadow-md ${heat.glow} ${
+                        isSelected ? "ring-2 ring-white ring-offset-2 ring-offset-slate-950 scale-[1.02] z-10" : "hover:scale-[1.01]"
+                      }`}
+                    >
+                      <span className="text-xs font-bold text-slate-100 drop-shadow">{layout.label}</span>
+                      <span className="text-xl font-extrabold mt-1 tracking-tight drop-shadow text-white">{zone.heat_score}</span>
+                      <span className="text-[9px] opacity-80 font-medium hidden sm:inline drop-shadow text-white">Dwell: {formatDwell(zone.avg_dwell_ms)}</span>
+                    </div>
+                  );
+                })}
+
+                {/* Tooltip Overlay */}
+                {hoveredZone && (
+                  <div 
                     style={{
                       position: "absolute",
-                      left: `${layout.x}%`,
-                      top: `${layout.y}%`,
-                      width: `${layout.w}%`,
-                      height: `${layout.h}%`
+                      left: `${hoveredZone.layout.x > 60 ? hoveredZone.layout.x - 30 : hoveredZone.layout.x + hoveredZone.layout.w + 2}%`,
+                      top: `${hoveredZone.layout.y}%`,
                     }}
-                    className={`rounded-lg border-2 ${heat.border} ${heat.bg} cursor-pointer transition-all duration-300 flex flex-col items-center justify-center p-2 text-center select-none shadow-md ${heat.glow} ${
-                      isSelected ? "ring-2 ring-white ring-offset-2 ring-offset-slate-950 scale-[1.02] z-10" : "hover:scale-[1.01]"
-                    }`}
+                    className="z-30 bg-slate-900 border border-slate-700/80 p-3 rounded-lg shadow-xl min-w-[160px] pointer-events-none transition-all duration-150 animate-in fade-in"
                   >
-                    <span className="text-xs font-bold text-slate-100 drop-shadow">{layout.label}</span>
-                    <span className="text-xl font-extrabold mt-1 tracking-tight drop-shadow text-white">{zone.heat_score}</span>
-                    <span className="text-[9px] opacity-80 font-medium hidden sm:inline drop-shadow text-white">Dwell: {formatDwell(zone.avg_dwell_ms)}</span>
+                    <p className="text-xs font-bold text-white border-b border-slate-800 pb-1.5 mb-1.5">{hoveredZone.layout.label}</p>
+                    <div className="space-y-1 text-[10px]">
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Heat Index:</span>
+                        <span className="font-semibold text-orange-400">{hoveredZone.zone.heat_score}/100</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Total Visits:</span>
+                        <span className="font-semibold text-white">{hoveredZone.zone.visit_count}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Avg Dwell:</span>
+                        <span className="font-semibold text-emerald-400">{formatDwell(hoveredZone.zone.avg_dwell_ms)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Confidence:</span>
+                        <span className={`font-semibold ${hoveredZone.zone.data_confidence === "HIGH" ? "text-emerald-400" : "text-amber-400"}`}>
+                          {hoveredZone.zone.data_confidence}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Heatmap Legend */}
+              <div className="flex items-center justify-between mt-4 bg-slate-900/40 border border-slate-800/80 px-4 py-2.5 rounded-lg text-xs">
+                <span className="text-slate-400 font-medium">Low Interaction</span>
+                <div className="flex gap-1.5 flex-1 max-w-[200px] sm:max-w-[300px] mx-4">
+                  {["bg-blue-500/40", "bg-emerald-500/60", "bg-yellow-500/70", "bg-orange-500/80", "bg-red-500/80"].map((c, idx) => (
+                    <div key={idx} className={`h-2 flex-1 rounded-sm ${c}`} />
+                  ))}
+                </div>
+                <span className="text-slate-400 font-medium">Hot zone</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Live Video Feeds Grid (Mock CCTV monitor) */}
+          <div className="bg-slate-900 border border-slate-800/80 rounded-xl shadow-xl overflow-hidden p-4">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
+              <div className="flex items-center gap-2 text-slate-300">
+                <Camera className="h-4 w-4 text-purple-400" />
+                <h2 className="text-sm font-bold uppercase tracking-wider">Live Video feeds (Surveillance Matrix)</h2>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />
+                <span className="text-[10px] text-slate-400 font-mono uppercase tracking-wider">YOLOv8 Real-Time ReID Pipeline</span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {Object.keys(activeLayout).slice(0, 4).map((zoneId, idx) => {
+                const camKeys = Object.keys(activeCameras);
+                const camId = camKeys[idx % camKeys.length];
+                const cam = activeCameras[camId];
+                const zoneData = zones.find(z => z.zone_id === zoneId);
+                const peopleCount = zoneId === "BILLING_COUNTER" ? (metrics?.current_queue_depth ?? 0) : (zoneData ? Math.min(Math.round(zoneData.visit_count / 3), 4) : 0);
+
+                return (
+                  <div key={zoneId} className="relative aspect-[16/9] bg-slate-950 rounded-lg overflow-hidden border border-slate-800/80 flex flex-col justify-between p-3 font-mono text-[9px] group hover:border-purple-500/30 transition-all">
+                    
+                    {/* Scanlines / CCTV grids mock overlay */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-transparent to-slate-950/80 pointer-events-none z-10" />
+                    <div className="absolute inset-0 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] bg-[length:100%_4px,3px_100%] opacity-25 pointer-events-none" />
+
+                    {/* Top status bar */}
+                    <div className="flex justify-between items-start z-20">
+                      <span className="bg-slate-900/90 px-1.5 py-0.5 rounded text-slate-300 font-bold border border-slate-800">{camId}</span>
+                      <span className="text-red-500 font-bold tracking-widest text-[8px] flex items-center gap-1 bg-red-950/30 px-1.5 py-0.5 rounded border border-red-500/10">
+                        <span className="h-1.5 w-1.5 rounded-full bg-red-500 animate-ping"></span>
+                        LIVE
+                      </span>
+                    </div>
+
+                    {/* Mock Bounding Box Overlay graphics */}
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                      {peopleCount > 0 && (
+                        <div className="border border-green-500 bg-green-500/5 px-1 py-0.5 text-[7px] text-green-400 font-bold rounded absolute left-[25%] top-[25%] w-10 h-20 flex flex-col justify-between">
+                          <span>Person #01</span>
+                          <span>94%</span>
+                        </div>
+                      )}
+                      {peopleCount > 1 && (
+                        <div className="border border-green-500 bg-green-500/5 px-1 py-0.5 text-[7px] text-green-400 font-bold rounded absolute right-[25%] top-[30%] w-9 h-16 flex flex-col justify-between">
+                          <span>Person #02</span>
+                          <span>89%</span>
+                        </div>
+                      )}
+                      {zoneId === "BILLING_COUNTER" && (metrics?.current_queue_depth ?? 0) > 2 && (
+                        <div className="border border-red-500 bg-red-500/10 px-1.5 py-0.5 text-[7px] text-red-400 font-extrabold rounded absolute left-[40%] top-[40%] w-16 h-10 flex flex-col justify-between animate-pulse">
+                          <span>QUEUE SPIKE</span>
+                          <span>Depth: {metrics.current_queue_depth}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Bottom status bar */}
+                    <div className="flex justify-between items-end z-20 text-[8px] text-slate-400">
+                      <span className="font-semibold text-slate-300 truncate max-w-[120px]">{cam.label}</span>
+                      <span className="text-purple-400/80 font-mono truncate max-w-[100px]">{cam.feedName}</span>
+                    </div>
                   </div>
                 );
               })}
-
-              {/* Tooltip Overlay */}
-              {hoveredZone && (
-                <div 
-                  style={{
-                    position: "absolute",
-                    left: `${hoveredZone.layout.x > 60 ? hoveredZone.layout.x - 30 : hoveredZone.layout.x + hoveredZone.layout.w + 2}%`,
-                    top: `${hoveredZone.layout.y}%`,
-                  }}
-                  className="z-30 bg-slate-900 border border-slate-700/80 p-3 rounded-lg shadow-xl min-w-[160px] pointer-events-none transition-all duration-150 animate-in fade-in"
-                >
-                  <p className="text-xs font-bold text-white border-b border-slate-800 pb-1.5 mb-1.5">{hoveredZone.layout.label}</p>
-                  <div className="space-y-1 text-[10px]">
-                    <div className="flex justify-between">
-                      <span className="text-slate-400">Heat Index:</span>
-                      <span className="font-semibold text-orange-400">{hoveredZone.zone.heat_score}/100</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-400">Total Visits:</span>
-                      <span className="font-semibold text-white">{hoveredZone.zone.visit_count}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-400">Avg Dwell:</span>
-                      <span className="font-semibold text-emerald-400">{formatDwell(hoveredZone.zone.avg_dwell_ms)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-400">Confidence:</span>
-                      <span className={`font-semibold ${hoveredZone.zone.data_confidence === "HIGH" ? "text-emerald-400" : "text-amber-400"}`}>
-                        {hoveredZone.zone.data_confidence}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Heatmap Legend */}
-            <div className="flex items-center justify-between mt-4 bg-slate-900/40 border border-slate-800/80 px-4 py-2.5 rounded-lg text-xs">
-              <span className="text-slate-400 font-medium">Low Interaction</span>
-              <div className="flex gap-1.5 flex-1 max-w-[200px] sm:max-w-[300px] mx-4">
-                {["bg-blue-500/40", "bg-emerald-500/60", "bg-yellow-500/70", "bg-orange-500/80", "bg-red-500/80"].map((c, idx) => (
-                  <div key={idx} className={`h-2 flex-1 rounded-sm ${c}`} />
-                ))}
-              </div>
-              <span className="text-slate-400 font-medium">Hot zone</span>
             </div>
           </div>
+
         </div>
 
         {/* Sidebar details / Selected Zone Panel */}
         <div className="bg-slate-900 border border-slate-800/80 rounded-xl shadow-xl flex flex-col overflow-hidden">
-          <div className="border-b border-slate-800 px-4 py-3">
-            <h2 className="text-sm font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
-              <Layers className="h-4 w-4 text-purple-400" />
-              Zone Inspector
-            </h2>
+          
+          {/* Tab Selector */}
+          <div className="border-b border-slate-800 flex bg-slate-900/60">
+            <button
+              onClick={() => setSidebarTab("inspector")}
+              className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-all flex items-center justify-center gap-1.5 ${
+                sidebarTab === "inspector" 
+                  ? "border-purple-500 text-purple-400 bg-slate-900/40 font-extrabold" 
+                  : "border-transparent text-slate-500 hover:text-slate-300"
+              }`}
+            >
+              <Layers className="h-3.5 w-3.5" />
+              Inspector
+            </button>
+            <button
+              onClick={() => setSidebarTab("staff")}
+              className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-all flex items-center justify-center gap-1.5 ${
+                sidebarTab === "staff" 
+                  ? "border-purple-500 text-purple-400 bg-slate-900/40 font-extrabold" 
+                  : "border-transparent text-slate-500 hover:text-slate-300"
+              }`}
+            >
+              <ShieldCheck className="h-3.5 w-3.5" />
+              Staff Tracker
+            </button>
           </div>
           
           <div className="p-4 flex-1 flex flex-col justify-between">
-            {selectedZone ? (
+            {sidebarTab === "inspector" ? (
               <div>
-                <div className="flex items-start justify-between border-b border-slate-800 pb-3 mb-3">
+                {selectedZone ? (
                   <div>
-                    <h3 className="font-bold text-white text-base">{activeLayout[selectedZone.zone_id]?.label || selectedZone.zone_id}</h3>
-                    <p className="text-[10px] text-purple-400 font-semibold">{activeLayout[selectedZone.zone_id]?.category || "Retail Area"}</p>
+                    <div className="flex items-start justify-between border-b border-slate-800 pb-3 mb-3">
+                      <div>
+                        <h3 className="font-bold text-white text-base">{activeLayout[selectedZone.zone_id]?.label || selectedZone.zone_id}</h3>
+                        <p className="text-[10px] text-purple-400 font-semibold">{activeLayout[selectedZone.zone_id]?.category || "Retail Area"}</p>
+                      </div>
+                      <button 
+                        onClick={() => setSelectedZone(null)}
+                        className="text-[10px] px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-400 font-semibold"
+                      >
+                        Deselect
+                      </button>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-3 mb-4">
+                      <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-850">
+                        <p className="text-[10px] text-slate-400 font-medium">Avg Dwell Time</p>
+                        <p className="text-sm font-extrabold text-emerald-400 mt-0.5">{formatDwell(selectedZone.avg_dwell_ms)}</p>
+                      </div>
+                      <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-850">
+                        <p className="text-[10px] text-slate-400 font-medium">Total Visits</p>
+                        <p className="text-sm font-extrabold text-white mt-0.5">{selectedZone.visit_count} visits</p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2 text-xs">
+                      <div className="bg-slate-950/60 p-2.5 rounded-lg border border-slate-850 flex items-center justify-between">
+                        <span className="text-slate-400 flex items-center gap-1.5"><Clock className="h-3.5 w-3.5" /> Heat Score</span>
+                        <span className="font-bold text-orange-400 text-sm">{selectedZone.heat_score}%</span>
+                      </div>
+                      <div className="bg-slate-950/60 p-2.5 rounded-lg border border-slate-850 flex items-center justify-between">
+                        <span className="text-slate-400 flex items-center gap-1.5"><Shield className="h-3.5 w-3.5" /> Data Confidence</span>
+                        <span className={`font-bold flex items-center gap-1 ${
+                          selectedZone.data_confidence === "HIGH" ? "text-emerald-400" : "text-amber-400"
+                        }`}>
+                          <CheckCircle className="h-3.5 w-3.5" /> {selectedZone.data_confidence}
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                  <button 
-                    onClick={() => setSelectedZone(null)}
-                    className="text-[10px] px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-400"
-                  >
-                    Deselect
-                  </button>
+                ) : (
+                  <div className="text-center py-8 text-slate-500">
+                    <HelpCircle className="h-8 w-8 mx-auto mb-2 text-slate-600" />
+                    <p className="text-xs">Select a zone on the 2D floorplan above to view detailed KPIs, average dwells, and interaction stats.</p>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div>
+                {/* Staff Tracking Panel */}
+                <div className="border-b border-slate-800 pb-3 mb-3">
+                  <h3 className="font-bold text-white text-base flex items-center gap-1.5">
+                    <UserCheck className="h-4 w-4 text-purple-400" /> Staff Activity Tracking
+                  </h3>
+                  <p className="text-[10px] text-slate-400">Classifying staff using torso crop ReID appearance templates</p>
                 </div>
-                
-                <div className="grid grid-cols-2 gap-3 mb-4">
-                  <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-850">
-                    <p className="text-[10px] text-slate-400">Avg Dwell Time</p>
-                    <p className="text-sm font-extrabold text-emerald-400 mt-0.5">{formatDwell(selectedZone.avg_dwell_ms)}</p>
+
+                {/* Bivariate Distribution */}
+                <div className="bg-slate-950/80 p-3 rounded-lg border border-slate-850 mb-4">
+                  <h4 className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">Live Session Distribution</h4>
+                  <div className="flex h-3 rounded-full overflow-hidden bg-slate-900 border border-slate-800">
+                    <div style={{ width: `${customerEventPct}%` }} className="bg-purple-600 h-full transition-all duration-500" />
+                    <div style={{ width: `${staffEventPct}%` }} className="bg-blue-500 h-full transition-all duration-500" />
                   </div>
-                  <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-850">
-                    <p className="text-[10px] text-slate-400">Total Visits</p>
-                    <p className="text-sm font-extrabold text-white mt-0.5">{selectedZone.visit_count} visits</p>
+                  <div className="flex justify-between mt-2 text-[9px] font-medium text-slate-400">
+                    <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-purple-600" /> Shoppers ({customerEventPct}%)</span>
+                    <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-blue-500" /> Staff ({staffEventPct}%)</span>
                   </div>
                 </div>
 
                 <div className="space-y-2 text-xs">
                   <div className="bg-slate-950/60 p-2.5 rounded-lg border border-slate-850 flex items-center justify-between">
-                    <span className="text-slate-400 flex items-center gap-1.5"><Clock className="h-3.5 w-3.5" /> Heat Score</span>
-                    <span className="font-bold text-orange-400 text-sm">{selectedZone.heat_score}%</span>
+                    <span className="text-slate-400">Staff Events Ingested</span>
+                    <span className="font-bold text-blue-400">{liveStaffCount}</span>
                   </div>
                   <div className="bg-slate-950/60 p-2.5 rounded-lg border border-slate-850 flex items-center justify-between">
-                    <span className="text-slate-400 flex items-center gap-1.5"><Shield className="h-3.5 w-3.5" /> Data Confidence</span>
-                    <span className={`font-bold flex items-center gap-1 ${
-                      selectedZone.data_confidence === "HIGH" ? "text-emerald-400" : "text-amber-400"
-                    }`}>
-                      <CheckCircle className="h-3.5 w-3.5" /> {selectedZone.data_confidence}
+                    <span className="text-slate-400">Classification Model</span>
+                    <span className="font-bold text-slate-300">YOLOv8 Staff Filter</span>
+                  </div>
+                  <div className="bg-slate-950/60 p-2.5 rounded-lg border border-slate-850 flex items-center justify-between">
+                    <span className="text-slate-400">ReID Descriptor</span>
+                    <span className="font-bold text-emerald-400 text-[10px] flex items-center gap-1">
+                      <CheckCircle className="h-3 w-3" /> Torso Matching
                     </span>
                   </div>
                 </div>
-              </div>
-            ) : (
-              <div className="text-center py-8 text-slate-500">
-                <HelpCircle className="h-8 w-8 mx-auto mb-2 text-slate-600" />
-                <p className="text-xs">Select a zone on the 2D floorplan above to view detailed KPIs, average dwells, and interaction stats.</p>
+
+                {/* Staff List */}
+                <div className="mt-4">
+                  <h4 className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">Monitored Staff Log</h4>
+                  <div className="space-y-1.5 max-h-24 overflow-y-auto scrollbar-thin">
+                    <div className="bg-slate-950/40 p-1.5 rounded border border-slate-850 flex justify-between items-center text-[10px]">
+                      <span className="text-blue-400 font-semibold">STF_REID_01</span>
+                      <span className="text-[8px] bg-emerald-500/20 text-emerald-400 px-1 rounded font-bold">ON FLOOR</span>
+                    </div>
+                    {liveStaffCount > 0 && (
+                      <div className="bg-slate-950/40 p-1.5 rounded border border-slate-850 flex justify-between items-center text-[10px]">
+                        <span className="text-blue-400 font-semibold">STF_REID_02</span>
+                        <span className="text-[8px] bg-emerald-500/20 text-emerald-400 px-1 rounded font-bold">ON FLOOR</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
             )}
 
@@ -516,7 +694,11 @@ export default function App() {
                       <div>
                         <span className="text-purple-400 font-bold mr-1">[{evt.timestamp}]</span>
                         <span className="text-indigo-300 font-medium">{evt.visitor}</span>
-                        <span className="text-slate-400 font-semibold mx-1">{evt.type}</span>
+                        <span className={`font-semibold mx-1 ${
+                          evt.type.includes("ABANDON") ? "text-red-400" :
+                          evt.type.includes("JOIN") ? "text-amber-400" :
+                          evt.type.includes("ENTER") ? "text-purple-400" : "text-slate-400"
+                        }`}>{evt.type}</span>
                         {evt.zone && <span className="text-slate-500">@{evt.zone}</span>}
                       </div>
                       {evt.isStaff && (
@@ -544,7 +726,7 @@ export default function App() {
         <div className="bg-slate-900 border border-slate-800/80 p-4 rounded-xl shadow-xl">
           <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
             <h2 className="text-sm font-bold uppercase tracking-wider text-slate-300">Shopper Funnel Conversion & Drop-off</h2>
-            <span className="text-[10px] text-slate-400">Total sessions: {funnel?.session_count ?? 0}</span>
+            <span className="text-[10px] text-slate-400 font-mono">Total Sessions: {funnel?.session_count ?? 0}</span>
           </div>
 
           <div className="h-64">
@@ -584,7 +766,7 @@ export default function App() {
         <div className="bg-slate-900 border border-slate-800/80 p-4 rounded-xl shadow-xl">
           <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
             <h2 className="text-sm font-bold uppercase tracking-wider text-slate-300">Average Dwell Time by Retail Zone</h2>
-            <span className="text-[10px] text-slate-400">Excluding navigation zones</span>
+            <span className="text-[10px] text-slate-400 font-mono">Excluding Navigation</span>
           </div>
 
           <div className="h-64">
@@ -621,12 +803,12 @@ export default function App() {
       </div>
 
       {/* Footer */}
-      <footer className="mt-8 border-t border-slate-900 pt-4 flex flex-col sm:flex-row justify-between items-center text-[10px] text-slate-600 gap-2">
+      <footer className="mt-8 border-t border-slate-900 pt-4 flex justify-between items-center text-[10px] text-slate-600">
         <div>
           Real-Time Store Intelligence Panel v1.2.0 · React + FastAPI + WebSockets
         </div>
         <div>
-          Resume Bullet Point: "Architected a real-time full-stack retail analytics dashboard using React, FastAPI, and WebSockets, rendering live customer dwell heatmaps and funnel metrics with sub-second update latencies."
+          &copy; {new Date().getFullYear()} Purplle Retail Analytics. All rights reserved.
         </div>
       </footer>
 
