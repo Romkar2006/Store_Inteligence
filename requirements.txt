@@ -13,3 +13,4 @@ pytest-asyncio
 httpx
 structlog
 pandas
+python-dotenv

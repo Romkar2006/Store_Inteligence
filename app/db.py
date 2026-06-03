@@ -1,4 +1,6 @@
 import os
+from dotenv import load_dotenv
+load_dotenv()
 import logging
 from datetime import datetime, timezone, timedelta
 import pandas as pd
