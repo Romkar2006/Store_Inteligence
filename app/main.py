@@ -1,5 +1,9 @@
+import os
 from dotenv import load_dotenv
-load_dotenv()
+# Load .env file robustly from project root using absolute path relative to this file
+_current_dir = os.path.dirname(os.path.abspath(__file__))
+_dotenv_path = os.path.join(_current_dir, "..", ".env")
+load_dotenv(_dotenv_path)
 import time
 import uuid
 import logging

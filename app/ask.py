@@ -28,7 +28,7 @@ async def query_gemini_api(api_key: str, prompt: str) -> str:
     }
     url = f"{GEMINI_API_URL}?key={api_key}"
     
-    async with httpx.AsyncClient(timeout=10.0) as client:
+    async with httpx.AsyncClient(timeout=20.0) as client:
         response = await client.post(url, json=payload, headers=headers)
         if response.status_code != 200:
             logger.error("Gemini API call failed", status_code=response.status_code, body=response.text)
@@ -137,7 +137,7 @@ AI Response:"""
             answer = await query_gemini_api(api_key, prompt)
             mode = "genai"
         except Exception as e:
-            logger.warn("Gemini API query failed, falling back to rule-based engine", error=str(e))
+            logger.warn("Gemini API query failed, falling back to rule-based engine", error=str(e), exc_info=True)
             answer = run_rule_based_fallback(question, context)
             mode = "fallback"
     else:
