@@ -167,24 +167,97 @@ The Store Intelligence System operates as an asynchronous, event-driven pipeline
 4. **Idempotent Storage**: FastAPI digests event batches, verifies event ID uniqueness, and stores records in SQLite via SQLAlchemy Core, updating KPIs dynamically.
 5. **Real-time REST APIs**: Serving metrics, heatmaps, operational anomalies (like queue depth warnings), and drop-off funnels to clients.
 6. **Live Terminal Monitor**: Uses `rich.live` to fetch API state and replay ingested logs at 10x speed.
-7. **Live Web Dashboard**: Polling-based React web interface with real-time zone heatmap visual layout.
+7. **Live Web Dashboard**: Real-time React + Tailwind CSS dashboard with live zone heatmaps, WebSockets stream integration, simulated CCTV matrix, and dual-store support.
 
-## Live Web Dashboard
+## Live Web Dashboard (Upgraded)
+
+The dashboard has been upgraded from a basic polling client to a premium, real-time analytics command center:
 
 ```bash
-cd dashboard-web && npm install && npm run dev
+# Go to dashboard directory
+cd dashboard-web
+
+# Install dependencies and start the Vite dev server
+npm install
+npm run dev
 ```
 
-Visit http://localhost:5173
+Visit: **http://localhost:5173**
 
-Features:
-- Store floorplan with live zone heatmap (green = low, dark green = high)
-- KPI row: visitors, conversion rate, queue depth, abandonment rate
-- Anomaly banner when queue > 4 or conversion drops
-- Hover tooltips per zone (dwell time, visit count, confidence)
-- Auto-refreshes every 5 seconds via polling
-- Recharts horizontal bar for dwell time comparison
+### Premium Dashboard Features:
+- **Dual-Store Analytics**: Dynamically toggles layouts, stats, and CCTV streams between Brigade Road (`ST1008` / Store 1) and Phoenix Marketcity (`ST1009` / Store 2).
+- **Sub-Second WebSocket Ingest Log**: Connects via `wss://` / `ws://` to log newly processed events in real-time, instantly repainting metrics and heat scores without page refreshes.
+- **Interactive 2D Floorplan Heatmap**: Dynamically color-codes retail zones based on normalized average dwell times. Features hover detail cards and click-to-inspect zone analysis.
+- **Simulated CCTV Video Feeds Matrix**: A 2x2 surveillance monitoring grid showing camera labels, active object detections, confidence indices, and warning alarms (e.g. flashing **"QUEUE SPIKE"** flags on the checkout camera).
+- **Staff ReID Activity Monitor**: A dedicated sidebar panel tracking staff classifications, ReID model template checks, and a live progress indicator mapping customer vs. staff event ratios.
+- **Advanced Recharts Integration**: Interactive area charts mapping shopper conversion funnels (`ENTRY` → `ZONE_VISIT` → `BILLING_QUEUE` → `PURCHASE`) and horizontal bar charts mapping average dwells.
+
+---
+
+## System Architecture (Real-Time Web Dashboard)
+
+Once the Live Web Dashboard and WebSocket broadcasters are deployed, the end-to-end data flow operates as follows:
+
+```mermaid
+graph TD
+    subgraph Client Layer [Client Layer (Hosted on Vercel)]
+        React[Vite React Dashboard]
+    end
+
+    subgraph Streaming Layer [Real-Time Streams]
+        WS[WebSocket Stream wss://]
+        REST[REST API HTTP https://]
+    end
+
+    subgraph Service Layer [Service Layer (Hosted on Render)]
+        FastAPI[FastAPI Server]
+        WM[WebSocket Connection Manager]
+    end
+
+    subgraph Storage [Storage Layer]
+        SQLite[(SQLite Database)]
+    end
+
+    subgraph Ingestion Layer [Data Source Ingest]
+        CV[CV Pipelines Store 1 & 2]
+    end
+
+    CV -->|HTTP POST /events/ingest| FastAPI
+    FastAPI -->|Background Task Broadcast| WM
+    WM -->|Real-Time Broadcast| React
+    React -->|HTTP GET Metrics/Heatmap| FastAPI
+    FastAPI -->|SQLAlchemy Async| SQLite
+```
+
+### Key Production Enhancements:
+1. **Dynamic Environment Configuration**: The React frontend dynamically loads the hosted backend address via `VITE_API_BASE`.
+2. **Auto-Deriving WebSocket Channels**: The client automatically extracts the domain name and securely negotiates the protocol (falling back to secure `wss://` on HTTPS and standard `ws://` on local HTTP).
+3. **Structured Analytics logging**: The FastAPI backend records trace IDs, endpoint latency, status codes, and batch ingestion stats in a structured JSON format (`structlog`).
+4. **Resilient Error Boundaries**: Incorporates database outage checks returning `503 Service Unavailable` and structured error responses.
+
+---
+
+## Cloud Deployment (Production Ready)
+
+### Frontend Deployment (Vercel)
+1. Link your GitHub repository to Vercel.
+2. Set the **Root Directory** settings to `dashboard-web`.
+3. Add the environment variable `VITE_API_BASE` set to your public API URL (e.g., `https://your-api.onrender.com`).
+4. Click **Deploy**.
+
+### Backend Deployment (Render / Railway)
+1. Create a Web Service pointing to your repository.
+2. Leave the **Root Directory** field blank (build directly from the root).
+3. Set **Build Command** to `pip install -r requirements.txt`.
+4. Set **Start Command** to `python -m uvicorn app.main:app --host 0.0.0.0 --port 10000`.
+5. Add the environment variables:
+   - `DB_PATH` = `store_intelligence.db`
+   - `POS_CSV_PATH` = `data/pos_transactions.csv`
+6. Click **Deploy**.
+
+---
 
 See docs/DESIGN.md for full architecture and AI-assisted decisions.
 See docs/CHOICES.md for engineering trade-off reasoning.
+
 
