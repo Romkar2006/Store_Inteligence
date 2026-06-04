@@ -19,6 +19,8 @@ store-intelligence-pipeline-setup/
 │   ├── models.py              # Pydantic schemas (Ask, Flow, Ingest)
 │   ├── db.py                  # POS Data Loader & Database Utilities
 │   └── config.py              # Path and Env resolution config
+├── dashboard/                 # CLI Live Terminal Monitor
+│   └── live_dashboard.py      # rich.live console subscriber feed
 ├── dashboard-web/             # React + Tailwind CSS + Vite Frontend
 │   ├── src/
 │   │   ├── App.jsx            # Main Dashboard & UI Components
@@ -27,6 +29,10 @@ store-intelligence-pipeline-setup/
 │   ├── postcss.config.js      # PostCSS Configuration
 │   ├── package.json           # Frontend Dependencies (Recharts, Lucide, etc.)
 │   └── vite.config.js         # Vite configuration
+├── docs/                      # Technical Documentation
+│   ├── DESIGN.md              # System Architecture & Detailed Design
+│   ├── CHOICES.md             # Technical Choices & Design Trade-offs
+│   └── docker_verified.png    # Verified Docker deployment screenshot
 ├── pipeline/                  # Computer Vision Tracking Pipelines
 │   ├── detect_store_2.py      # Store 2 (Phoenix Marketcity) CV Pipeline
 │   ├── cam_entry_store_2.py   # Store 2 Entrance crossing logic
@@ -41,6 +47,10 @@ store-intelligence-pipeline-setup/
 │   ├── test_ask.py            # AI Conversational Query tests
 │   ├── test_flow.py           # Sankey journey sequence compiler tests
 │   └── test_websocket.py      # Real-time WebSocket transmission tests
+├── snapshots/                 # System UI & Visual Snapshots
+│   ├── snapshot_dashboard.png # Main Dashboard snapshot
+│   ├── snapshot_sankey_flow.png # Sankey visitor flow snapshot
+│   └── snapshot_store2.png    # Store 2 toggle view snapshot
 ├── .env                       # Environment Variables (Gemini API Key, local DB, etc.)
 ├── store_intelligence.db      # Local Persistent SQLite database
 ├── requirements.txt           # Python backend dependencies
