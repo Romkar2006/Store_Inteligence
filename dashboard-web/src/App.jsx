@@ -296,65 +296,98 @@ export default function App() {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 p-4 lg:p-6 selection:bg-purple-600 selection:text-white">
       
-      {/* Header */}
-      <header className="flex flex-col md:flex-row md:items-center md:justify-between border-b border-slate-800 pb-4 mb-6 gap-4">
+      {/* Sticky Glassmorphic Navbar */}
+      <header className="sticky top-0 z-50 backdrop-blur-md bg-slate-950/80 border-b border-slate-900/80 px-4 lg:px-6 py-3.5 -mx-4 lg:-mx-6 mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4 shadow-lg shadow-slate-950/30">
         <div>
           <div className="flex items-center gap-3">
-            <Layers className="h-6 w-6 text-purple-500 animate-pulse" />
-            <h1 className="text-xl md:text-2xl font-bold tracking-tight bg-gradient-to-r from-purple-400 via-pink-400 to-indigo-400 bg-clip-text text-transparent">
-              Store Intelligence Live Panel
-            </h1>
+            {/* Custom SVG CCTV Logo */}
+            <div className="h-9 w-9 flex-shrink-0 relative group">
+              <div className="absolute inset-0 bg-purple-500/20 rounded-xl blur-md group-hover:bg-purple-500/40 transition-all duration-300" />
+              <svg className="h-full w-full relative z-10 transition-transform duration-500 group-hover:rotate-12" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                  <linearGradient id="navPurpleGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor="#c084fc" />
+                    <stop offset="50%" stopColor="#818cf8" />
+                    <stop offset="100%" stopColor="#6366f1" />
+                  </linearGradient>
+                  <radialGradient id="navGlowGrad" cx="50%" cy="50%" r="50%">
+                    <stop offset="0%" stopColor="#a78bfa" stopOpacity="0.3" />
+                    <stop offset="100%" stopColor="#a78bfa" stopOpacity="0" />
+                  </radialGradient>
+                </defs>
+                <circle cx="50" cy="50" r="45" fill="url(#navGlowGrad)" />
+                <path d="M 20 30 L 20 20 L 30 20" stroke="url(#navPurpleGrad)" strokeWidth="3.5" strokeLinecap="round" />
+                <path d="M 80 30 L 80 20 L 70 20" stroke="url(#navPurpleGrad)" strokeWidth="3.5" strokeLinecap="round" />
+                <path d="M 20 70 L 20 80 L 30 80" stroke="url(#navPurpleGrad)" strokeWidth="3.5" strokeLinecap="round" />
+                <path d="M 80 70 L 80 80 L 70 80" stroke="url(#navPurpleGrad)" strokeWidth="3.5" strokeLinecap="round" />
+                <rect x="30" y="32" width="40" height="26" rx="5" fill="#111827" stroke="url(#navPurpleGrad)" strokeWidth="3" />
+                <path d="M 40 58 L 34 68 L 66 68 Z" fill="url(#navPurpleGrad)" />
+                <circle cx="50" cy="68" r="3" fill="#ffffff" />
+                <path d="M 50 32 L 50 16 L 40 16" stroke="url(#navPurpleGrad)" strokeWidth="3" strokeLinecap="round" />
+                <circle cx="50" cy="45" r="9" fill="#030712" stroke="url(#navPurpleGrad)" strokeWidth="2.5" />
+                <circle cx="48" cy="43" r="3" fill="#38bdf8" opacity="0.6" />
+                <circle cx="51" cy="46" r="1.5" fill="#ffffff" />
+                <circle cx="62" cy="38" r="1.5" fill="#ef4444" className="animate-pulse" />
+              </svg>
+            </div>
+            <div>
+              <h1 className="text-md md:text-lg font-black tracking-wider bg-gradient-to-r from-purple-400 via-pink-400 to-indigo-400 bg-clip-text text-transparent uppercase font-mono leading-none">
+                Purplle Store Intelligence
+              </h1>
+              <span className="text-[9px] text-slate-400 uppercase tracking-widest font-bold flex items-center gap-1.5 mt-1">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                CCTV Behavioral Analytics Matrix
+              </span>
+            </div>
           </div>
-          <p className="text-xs text-slate-400 mt-1 flex items-center gap-2">
-            <MapPin className="h-3 w-3 text-purple-400" />
-            {storeId === "ST1008" ? "Brigade Road Store · Store 1" : "Phoenix Marketcity Store · Store 2"}
-          </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
           {/* Store Selector */}
-          <div className="bg-slate-900 border border-slate-800 rounded-lg p-0.5 flex gap-1">
+          <div className="bg-slate-955 border border-slate-850 p-1 rounded-xl flex gap-1 shadow-inner">
             <button
               onClick={() => handleStoreChange("ST1008")}
-              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+              className={`px-3.5 py-1.5 rounded-lg text-[10px] font-extrabold uppercase tracking-wider transition-all duration-300 flex items-center gap-1.5 ${
                 storeId === "ST1008" 
-                  ? "bg-purple-600 text-white shadow-md shadow-purple-600/20" 
-                  : "text-slate-400 hover:text-slate-200"
+                  ? "bg-gradient-to-br from-purple-600 to-indigo-650 text-white shadow-md shadow-purple-600/30 scale-100" 
+                  : "text-slate-400 hover:text-slate-200 hover:bg-slate-900/40"
               }`}
             >
-              Store 1 (ST1008)
+              <Store className="h-3.5 w-3.5" />
+              Brigade Rd (ST1008)
             </button>
             <button
               onClick={() => handleStoreChange("ST1009")}
-              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+              className={`px-3.5 py-1.5 rounded-lg text-[10px] font-extrabold uppercase tracking-wider transition-all duration-300 flex items-center gap-1.5 ${
                 storeId === "ST1009" 
-                  ? "bg-purple-600 text-white shadow-md shadow-purple-600/20" 
-                  : "text-slate-400 hover:text-slate-200"
+                  ? "bg-gradient-to-br from-purple-600 to-indigo-650 text-white shadow-md shadow-purple-600/30 scale-100" 
+                  : "text-slate-400 hover:text-slate-200 hover:bg-slate-900/40"
               }`}
             >
-              Store 2 (ST1009)
+              <Store className="h-3.5 w-3.5" />
+              Phoenix Marketcity (ST1009)
             </button>
           </div>
 
           {/* WebSocket Status */}
-          <div className="flex items-center gap-2 bg-slate-900/60 border border-slate-800 px-3 py-1.5 rounded-lg text-xs">
+          <div className="flex items-center gap-2 bg-slate-950/80 border border-slate-850 px-3 py-1.5 rounded-xl text-[10px] font-bold tracking-wider uppercase">
             <span className={`h-2.5 w-2.5 rounded-full ${
-              wsStatus === "connected" ? "bg-emerald-500 animate-ping" : 
+              wsStatus === "connected" ? "bg-emerald-500 animate-pulse" : 
               wsStatus === "connecting" ? "bg-amber-500 animate-pulse" : "bg-red-500"
             }`} />
-            <span className="text-slate-400 capitalize font-medium">
-              WS: {wsStatus}
+            <span className="text-slate-400">
+              Live Feed: {wsStatus}
             </span>
           </div>
 
-          {/* Manual Refresh */}
+          {/* Manual Refresh / Sync */}
           <button
             onClick={() => fetchAllData()}
             disabled={loading}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-xs font-medium transition-all"
+            className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-slate-800 bg-slate-950 hover:bg-slate-900 disabled:opacity-50 text-[10px] font-bold uppercase tracking-wider transition-all active:scale-95 shadow-md shadow-slate-950/50"
           >
-            <RefreshCw className={`h-3 w-3 ${loading ? "animate-spin" : ""}`} />
-            Sync
+            <RefreshCw className={`h-3 w-3 text-purple-400 ${loading ? "animate-spin" : ""}`} />
+            Sync DB
           </button>
         </div>
       </header>
