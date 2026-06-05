@@ -759,62 +759,78 @@ export default function App() {
             ) : (
               <div className="flex-grow flex flex-col justify-between overflow-hidden h-[340px]">
                 {/* Chat Message Window */}
-                <div className="flex-1 overflow-y-auto pr-1 flex flex-col gap-2.5 scrollbar-thin scroll-smooth min-h-0">
-                  {askHistory.map((msg, idx) => (
-                    <div key={idx} className={`flex flex-col ${msg.sender === "user" ? "items-end" : "items-start"}`}>
-                      <div className={`max-w-[90%] rounded-xl p-2.5 text-xs leading-relaxed shadow-lg ${
-                        msg.sender === "user" 
-                          ? "bg-purple-600/90 text-white rounded-br-none border border-purple-500/20" 
-                          : msg.mode === "system"
-                            ? "bg-slate-950 border border-slate-800/80 text-purple-300 italic"
-                            : "bg-slate-950/80 border border-slate-800 text-slate-200 rounded-bl-none"
-                      }`}>
-                        <div className="flex items-center gap-1.5 mb-1 text-[9px] font-extrabold uppercase tracking-wide text-slate-500">
-                          {msg.sender === "user" ? (
-                            <>
-                              <span>You</span>
-                              <User className="h-3 w-3 text-purple-400" />
-                            </>
-                          ) : (
-                            <>
-                              <Bot className="h-3 w-3 text-purple-400" />
-                              <span>Purplle AI</span>
-                            </>
-                          )}
-                        </div>
-                        <p className="whitespace-pre-wrap">{msg.text}</p>
-                        
-                        {msg.sender === "bot" && msg.mode && msg.mode !== "system" && (
-                          <div className="mt-1.5 flex justify-end">
-                            <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded border flex items-center gap-1 ${
-                              msg.mode === "genai" 
-                                ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" 
-                                : msg.mode === "fallback" 
-                                  ? "bg-amber-500/10 text-amber-400 border-amber-500/20" 
-                                  : "bg-red-500/10 text-red-400 border-red-500/20"
-                            }`}>
-                              <Sparkles className="h-2.5 w-2.5 text-purple-400" />
-                              {msg.mode === "genai" ? "Gemini 2.5 Flash" : msg.mode === "fallback" ? "Rule Engine Fallback" : "System Alert"}
-                            </span>
+                <div className="flex-1 overflow-y-auto pr-1 flex flex-col gap-3.5 scrollbar-thin scroll-smooth min-h-0 bg-slate-950/40 border border-slate-900 rounded-xl p-3">
+                  {askHistory.map((msg, idx) => {
+                    const isUser = msg.sender === "user";
+                    const isSystem = msg.mode === "system";
+                    
+                    return (
+                      <div key={idx} className={`flex items-start gap-2.5 ${isUser ? "flex-row-reverse" : "flex-row"}`}>
+                        {/* Avatar */}
+                        {!isSystem && (
+                          <div className={`h-7 w-7 rounded-full flex items-center justify-center border text-[10px] shadow-sm flex-shrink-0 ${
+                            isUser 
+                              ? "bg-purple-600/20 border-purple-500/30 text-purple-300"
+                              : msg.mode === "genai"
+                                ? "bg-emerald-500/20 border-emerald-500/30 text-emerald-300"
+                                : "bg-amber-500/20 border-amber-500/30 text-amber-300"
+                          }`}>
+                            {isUser ? <User className="h-3.5 w-3.5" /> : <Bot className="h-3.5 w-3.5" />}
                           </div>
                         )}
+                        
+                        <div className={`flex flex-col max-w-[80%] ${isUser ? "items-end" : "items-start"}`}>
+                          <div className={`rounded-2xl px-3 py-2 text-xs leading-relaxed shadow-lg border transition-all ${
+                            isUser 
+                              ? "bg-gradient-to-br from-purple-600 to-indigo-600 text-white rounded-tr-none border-purple-500/30" 
+                              : isSystem
+                                ? "bg-slate-950/60 border-slate-900 text-purple-300/80 italic rounded-lg w-full text-center px-4"
+                                : msg.mode === "genai"
+                                  ? "bg-slate-900/90 border-emerald-500/20 text-slate-100 rounded-tl-none shadow-emerald-950/10"
+                                  : "bg-slate-900/90 border-amber-500/20 text-slate-100 rounded-tl-none shadow-amber-950/10"
+                          }`}>
+                            {!isSystem && (
+                              <div className="flex items-center gap-1 mb-1 text-[8px] font-bold uppercase tracking-wider text-slate-500">
+                                {isUser ? "You" : "Purplle AI Assistant"}
+                              </div>
+                            )}
+                            <p className="whitespace-pre-wrap">{msg.text}</p>
+                            
+                            {msg.sender === "bot" && msg.mode && msg.mode !== "system" && (
+                              <div className="mt-2 flex justify-end">
+                                <span className={`text-[8px] font-bold px-2 py-0.5 rounded-full border flex items-center gap-1.5 tracking-wide uppercase ${
+                                  msg.mode === "genai" 
+                                    ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" 
+                                    : "bg-amber-500/10 text-amber-400 border-amber-500/20"
+                                }`}>
+                                  <Sparkles className="h-2.5 w-2.5 text-purple-400 animate-pulse" />
+                                  {msg.mode === "genai" ? "Gemini 2.5 Flash" : "Rule Engine"}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                   {askLoading && (
-                    <div className="flex items-start gap-2">
-                      <div className="max-w-[90%] rounded-xl p-2.5 text-xs bg-slate-950 border border-slate-800 text-slate-400 rounded-bl-none flex items-center gap-2">
-                        <Loader2 className="h-3.5 w-3.5 text-purple-400 animate-spin" />
-                        <span className="font-semibold text-slate-500 italic">Thinking...</span>
+                    <div className="flex items-start gap-2.5">
+                      <div className="h-7 w-7 rounded-full bg-purple-500/10 flex items-center justify-center border border-purple-500/20 text-purple-400 flex-shrink-0">
+                        <Bot className="h-3.5 w-3.5" />
+                      </div>
+                      <div className="bg-slate-900 border border-slate-850 text-slate-400 rounded-2xl rounded-tl-none p-3 shadow-lg flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: "0ms" }}></span>
+                        <span className="w-1.5 h-1.5 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: "150ms" }}></span>
+                        <span className="w-1.5 h-1.5 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: "300ms" }}></span>
                       </div>
                     </div>
                   )}
                   <div ref={chatEndRef} />
                 </div>
-
+ 
                 {/* Suggestion Chips */}
-                <div className="mt-2 border-t border-slate-850 pt-2 flex-shrink-0">
-                  <div className="flex flex-wrap gap-1.5 max-h-16 overflow-y-auto scrollbar-none">
+                <div className="mt-2.5 border-t border-slate-850/60 pt-2.5 flex-shrink-0">
+                  <div className="flex flex-wrap gap-1.5 max-h-20 overflow-y-auto scrollbar-none py-0.5">
                     {[
                       "Which zone had the most dwell time today?",
                       "How many customers abandoned the billing queue?",
@@ -825,14 +841,14 @@ export default function App() {
                         key={idx}
                         onClick={() => handleAskSubmit(q)}
                         disabled={askLoading}
-                        className="text-[9px] px-2 py-1 rounded-md bg-slate-950 border border-slate-850 hover:bg-slate-800 hover:border-slate-700 text-slate-400 hover:text-white font-medium transition-all text-left truncate max-w-full"
+                        className="text-[9px] px-2.5 py-1 rounded-full bg-slate-950 border border-slate-850 hover:bg-purple-950/10 hover:border-purple-500/30 text-slate-400 hover:text-purple-300 font-semibold transition-all duration-300 hover:-translate-y-0.5 active:translate-y-0 text-left truncate max-w-full shadow-sm hover:shadow"
                       >
                         {q}
                       </button>
                     ))}
                   </div>
                 </div>
-
+ 
                 {/* Input Form */}
                 <form 
                   onSubmit={(e) => {
@@ -847,12 +863,12 @@ export default function App() {
                     onChange={(e) => setAskQuestion(e.target.value)}
                     disabled={askLoading}
                     placeholder="Ask about operations..."
-                    className="flex-1 bg-slate-950 border border-slate-850 rounded-lg py-2 px-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-purple-500/50 focus:border-purple-500 disabled:opacity-50"
+                    className="flex-1 bg-slate-950 border border-slate-850 rounded-xl py-2 px-3.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 disabled:opacity-50 transition-all font-medium"
                   />
                   <button
                     type="submit"
                     disabled={askLoading || !askQuestion.trim()}
-                    className="p-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-white disabled:opacity-50 transition-all shadow-md shadow-purple-500/10 flex items-center justify-center"
+                    className="p-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white disabled:opacity-50 transition-all shadow-md shadow-purple-500/20 hover:shadow-purple-500/40 flex items-center justify-center active:scale-95"
                   >
                     <Send className="h-3.5 w-3.5" />
                   </button>
