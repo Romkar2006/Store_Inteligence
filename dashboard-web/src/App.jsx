@@ -75,6 +75,7 @@ export default function App() {
   const [anomalies, setAnomalies] = useState([]);
   const [liveEvents, setLiveEvents] = useState([]);
   const [flowData, setFlowData] = useState(null);
+  const [staffMetrics, setStaffMetrics] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [wsStatus, setWsStatus] = useState("connecting"); // 'connected' | 'disconnected' | 'connecting'
@@ -160,6 +161,16 @@ export default function App() {
       
       const anomaliesData = await anomaliesRes.json();
       setAnomalies(anomaliesData.anomalies || []);
+
+      // Fetch staff metrics gracefully
+      try {
+        const staffRes = await fetch(`${API_BASE}/stores/${targetStoreId}/staff`);
+        if (staffRes.ok) {
+          setStaffMetrics(await staffRes.json());
+        }
+      } catch (err) {
+        console.warn("Failed to load staff metrics:", err);
+      }
     } catch (err) {
       setError(err.message);
     } finally {
@@ -270,12 +281,17 @@ export default function App() {
     "Drop Off": stage.drop_off_pct,
   })) || [];
 
-  // Live Staff vs Customer counts from WebSocket feed
+  // Live Staff vs Customer counts from WebSocket feed, combined with database historical staff metrics
   const liveStaffCount = liveEvents.filter(e => e.isStaff).length;
   const liveCustomerCount = liveEvents.filter(e => !e.isStaff).length;
-  const totalLiveProcessed = liveStaffCount + liveCustomerCount;
-  const staffEventPct = totalLiveProcessed > 0 ? Math.round((liveStaffCount / totalLiveProcessed) * 100) : 0;
-  const customerEventPct = totalLiveProcessed > 0 ? 100 - staffEventPct : 0;
+  
+  // Dynamic staff / customer counts combining historical database metrics and live WebSocket session events
+  const totalStaffEvents = staffMetrics ? (staffMetrics.total_staff_events + liveStaffCount) : liveStaffCount;
+  const totalCustomerEvents = staffMetrics ? (staffMetrics.total_customer_events + liveCustomerCount) : liveCustomerCount;
+  const totalEventsCombined = totalStaffEvents + totalCustomerEvents;
+  
+  const staffEventPct = totalEventsCombined > 0 ? Math.round((totalStaffEvents / totalEventsCombined) * 100) : 0;
+  const customerEventPct = totalEventsCombined > 0 ? 100 - staffEventPct : 0;
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 p-4 lg:p-6 selection:bg-purple-600 selection:text-white">
@@ -722,10 +738,10 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="space-y-2 text-xs">
+                 <div className="space-y-2 text-xs">
                   <div className="bg-slate-950/60 p-2.5 rounded-lg border border-slate-850 flex items-center justify-between">
                     <span className="text-slate-400">Staff Events Ingested</span>
-                    <span className="font-bold text-blue-400">{liveStaffCount}</span>
+                    <span className="font-bold text-blue-400">{totalStaffEvents}</span>
                   </div>
                   <div className="bg-slate-950/60 p-2.5 rounded-lg border border-slate-850 flex items-center justify-between">
                     <span className="text-slate-400">Classification Model</span>
@@ -742,15 +758,24 @@ export default function App() {
                 {/* Staff List */}
                 <div className="mt-4">
                   <h4 className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">Monitored Staff Log</h4>
-                  <div className="space-y-1.5 max-h-24 overflow-y-auto scrollbar-thin">
-                    <div className="bg-slate-950/40 p-1.5 rounded border border-slate-850 flex justify-between items-center text-[10px]">
-                      <span className="text-blue-400 font-semibold">STF_REID_01</span>
-                      <span className="text-[8px] bg-emerald-500/20 text-emerald-400 px-1 rounded font-bold">ON FLOOR</span>
-                    </div>
-                    {liveStaffCount > 0 && (
-                      <div className="bg-slate-950/40 p-1.5 rounded border border-slate-850 flex justify-between items-center text-[10px]">
-                        <span className="text-blue-400 font-semibold">STF_REID_02</span>
-                        <span className="text-[8px] bg-emerald-500/20 text-emerald-400 px-1 rounded font-bold">ON FLOOR</span>
+                  <div className="space-y-1.5 max-h-[140px] overflow-y-auto scrollbar-thin">
+                    {staffMetrics?.staff_members && staffMetrics.staff_members.length > 0 ? (
+                      staffMetrics.staff_members.map((member) => (
+                        <div key={member.id} className="bg-slate-950/40 p-2 rounded-lg border border-slate-850 flex justify-between items-center text-[10px] hover:border-blue-500/20 transition-all">
+                          <div className="flex flex-col">
+                            <span className="text-blue-400 font-semibold">{member.id}</span>
+                            {member.last_seen && (
+                              <span className="text-slate-500 text-[8px] mt-0.5">
+                                Last active: {new Date(member.last_seen).toLocaleTimeString()}
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-[8px] bg-blue-500/20 text-blue-400 px-1.5 py-0.5 rounded font-bold uppercase tracking-wide">On Floor</span>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="bg-slate-950/40 p-2.5 rounded border border-slate-850 text-slate-500 text-center py-4 italic text-[10px]">
+                        No staff detected on floor yet.
                       </div>
                     )}
                   </div>

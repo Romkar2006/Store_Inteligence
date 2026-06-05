@@ -114,3 +114,39 @@ async def get_store_metrics(store_id: str, conn: AsyncConnection = Depends(get_d
         abandonment_rate=abandonment_rate,
         data_window="today"
     )
+
+@router.get("/stores/{store_id}/staff")
+async def get_store_staff_metrics(store_id: str, conn: AsyncConnection = Depends(get_db_conn)):
+    # Query distinct staff members in the store
+    query_staff = select(events.c.visitor_id, func.max(events.c.timestamp)).where(
+        events.c.store_id == store_id,
+        events.c.is_staff == 1
+    ).group_by(events.c.visitor_id)
+    res_staff = await conn.execute(query_staff)
+    staff_rows = res_staff.fetchall()
+    
+    # List of staff members with their last seen timestamp
+    staff_list = [{"id": row[0], "last_seen": row[1]} for row in staff_rows]
+    
+    # Query total staff events count
+    query_count = select(func.count()).where(
+        events.c.store_id == store_id,
+        events.c.is_staff == 1
+    )
+    res_count = await conn.execute(query_count)
+    total_staff_events = res_count.scalar() or 0
+
+    # Query total customer events count
+    query_cust_count = select(func.count()).where(
+        events.c.store_id == store_id,
+        events.c.is_staff == 0
+    )
+    res_cust_count = await conn.execute(query_cust_count)
+    total_customer_events = res_cust_count.scalar() or 0
+    
+    return {
+        "store_id": store_id,
+        "total_staff_events": total_staff_events,
+        "total_customer_events": total_customer_events,
+        "staff_members": staff_list
+    }
